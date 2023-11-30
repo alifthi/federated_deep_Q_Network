@@ -39,6 +39,7 @@ class agent:
 
         model.add(ksl.Dense(512, activation='relu'))
         model.add(ksl.Dense(self.action_size, activation='linear'))
+        model.compile(loss='mse',optimizer='sgd')
         return model
     def update_buffer(self, state, action, reward, n_state, is_done):
         self.buffer.append([state, action, reward, n_state, is_done])
@@ -69,7 +70,16 @@ class agent:
             if len(self.buffer)>self.batch_size:
                 self.train_local_models()
     def train_local_models(self):
-        pass
+        batch=np.random.sample(self.buffer,self.batch_size)
+        for state, action, reward, n_state, is_done in batch:
+            if is_done:
+                Q=reward
+            else:
+                Q=reward+self.discount_factor*np.max(self.target_network.predict(n_state[None,:]))
+            Q_values=self.main_network.predict(state[None,:])
+            Q_values[0][action]=Q
+            self.main_network.fit(state, Q_values, epochs=1)
+
     def update_target_network(self):
         self.target_network.set_weights(self.main_network.weights())
     def loss(self):
