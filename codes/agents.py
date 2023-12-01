@@ -4,8 +4,11 @@ import numpy as np
 from tensorflow.keras.models import Sequential
 from tensorflow.keras import layers as ksl 
 from utils import utils
-from config import ENV, STATE_SIZE, BATCH_SIZE, TARGET_NETWORK_UPDATE_RATE, DISCOUNT_FACTOR 
 import gym 
+from config import ENV, STATE_SIZE, BATCH_SIZE,\
+                    TARGET_NETWORK_UPDATE_RATE,\
+                    DISCOUNT_FACTOR, NUM_OF_EPISODES,\
+                    AGGREGATE_RATE 
 
 class agent:
     def __init__(self) -> None:
@@ -69,8 +72,9 @@ class agent:
             if done:
                 break
             if len(self.buffer)>self.batch_size:
-                self.train_local_models()
-    def train_local_models(self):
+                self.train_main_models()
+        return return_
+    def train_main_models(self):
         batch=np.random.sample(self.buffer,self.batch_size)
         for state, action, reward, n_state, is_done in batch:
             if is_done:
@@ -86,12 +90,28 @@ class agent:
     def loss(self):
         pass
 class agent1(agent):
-    def __init__(self) -> None:
+    def __init__(self,cooprator) -> None:
         super().__init__()
+        self.cooprator=cooprator
     def train_local_models(self):
-        return 
+        return_=0
+        for i in range(NUM_OF_EPISODES):
+            r=self.start_episode()
+            return_+=r
+            if i%AGGREGATE_RATE==0:
+                self.cooprator.aggregate({'agent1':self.target_network})
+            
 class agent2(agent):
     def __init__(self) -> None:
         super().__init__()
     def train_local_models(self):
-        return 
+        return_=0
+        for i in range(NUM_OF_EPISODES):
+            r=self.start_episode()
+            return_+=r
+            if i%AGGREGATE_RATE==0:
+                self.cooprator.aggregate({'agent2':self.target_network})
+    
+if __name__=='__main__':
+    ag=agent1()
+    ag.start_episode(10)
