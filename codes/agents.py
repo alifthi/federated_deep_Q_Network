@@ -93,25 +93,29 @@ class agent1(agent):
     def __init__(self,cooprator) -> None:
         super().__init__()
         self.cooprator=cooprator
-    def train_local_models(self):
+    def train_local_models(self,weights,network,call_for_aggregation):
         return_=0
         for i in range(NUM_OF_EPISODES):
             r=self.start_episode()
             return_+=r
             if i%AGGREGATE_RATE==0:
-                self.cooprator.aggregate({'agent1':self.target_network})
-            
+                weights.put(self.main_network.weights)
+                if not call_for_aggregation:
+                    call_for_aggregation=True 
+                    self.cooprator.aggregate(weights,network)
+                self.main_network=network.get()
 class agent2(agent):
-    def __init__(self) -> None:
+    def __init__(self,cooprator) -> None:
         super().__init__()
-    def train_local_models(self):
+        self.cooprator=cooprator
+    def train_local_models(self,weights,network,call_for_aggregation):
         return_=0
         for i in range(NUM_OF_EPISODES):
             r=self.start_episode()
             return_+=r
             if i%AGGREGATE_RATE==0:
-                self.cooprator.aggregate({'agent2':self.target_network})
-    
-if __name__=='__main__':
-    ag=agent1()
-    ag.start_episode(10)
+                weights.put(self.main_network.weights)
+                if not call_for_aggregation:
+                    call_for_aggregation=True
+                    self.cooprator.aggregate(weights,network)
+                self.main_network=network.get()
