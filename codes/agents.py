@@ -5,16 +5,18 @@ from tensorflow.keras.models import Sequential
 from tensorflow.keras import layers as ksl 
 from utils import utils
 import gym 
+import time
 from config import ENV, STATE_SIZE, BATCH_SIZE,\
                     TARGET_NETWORK_UPDATE_RATE,\
                     DISCOUNT_FACTOR, NUM_OF_EPISODES,\
-                    AGGREGATE_RATE 
+                    AGGREGATE_RATE, NUM_OF_TIMESTEPS
 
 class agent:
     def __init__(self) -> None:
         self.state_size=STATE_SIZE
         self.batch_size=BATCH_SIZE
         self.discount_factor=DISCOUNT_FACTOR
+        self.num_of_timesteps=NUM_OF_TIMESTEPS
         self.buffer=[]
         self.env=gym.make(ENV,render_mode='rgb_array')
         self.action_size=self.env.action_space.n
@@ -39,9 +41,13 @@ class agent:
         model.add(ksl.MaxPooling2D(2))        
         model.add(ksl.Activation('relu'))
 
+        model.add(ksl.Conv2D(32, kernel_size=3, strides=1, padding='same'))
+        model.add(ksl.MaxPooling2D(2))        
+        model.add(ksl.Activation('relu'))
+        
         model.add(ksl.Flatten())
 
-        model.add(ksl.Dense(512, activation='relu'))
+        model.add(ksl.Dense(128, activation='relu'))
         model.add(ksl.Dense(self.action_size, activation='linear'))
         model.compile(loss='mse',optimizer='sgd')
         return model
@@ -52,12 +58,12 @@ class agent:
         if np.random.uniform(0,1)>self.eps:
             return np.random.randint(self.action_size)
         return np.argmax(Q_value[0])
-    def start_episode(self, time_steps):
+    def start_episode(self):
         return_=0
         self.update_target_network()
         state,_=self.env.reset()
         state=self.utils.preprocessing(image=state)
-        for _ in range(time_steps):
+        for _ in range(self.num_of_timesteps):
             self.total_updates+=1
             self.env.render()
             if self.total_updates%self.target_network_update_rate==0:
@@ -93,29 +99,34 @@ class agent1(agent):
     def __init__(self,cooprator) -> None:
         super().__init__()
         self.cooprator=cooprator
-    def train_local_models(self,weights,network,call_for_aggregation):
+    def train_local_models(self,weights,aggregated_weights,call_for_aggregation):
         return_=0
         for i in range(NUM_OF_EPISODES):
-            r=self.start_episode()
-            return_+=r
             if i%AGGREGATE_RATE==0:
                 weights.put(self.main_network.weights)
-                if not call_for_aggregation:
-                    call_for_aggregation=True 
-                    self.cooprator.aggregate(weights,network)
-                self.main_network=network.get()
+                # time.sleep(0.1)
+                if not call_for_aggregation.value:
+                    print(1)
+                    call_for_aggregation.value=True 
+                    self.cooprator.fedavg_aggregate(weights,aggregated_weights)
+                self.main_network.set_weights(aggregated_weights.get())
+                print('aggregation done!')
+            r=self.start_episode()
+            return_+=r
 class agent2(agent):
     def __init__(self,cooprator) -> None:
         super().__init__()
         self.cooprator=cooprator
-    def train_local_models(self,weights,network,call_for_aggregation):
+    def train_local_models(self,weights,aggregated_weights,call_for_aggregation):
         return_=0
         for i in range(NUM_OF_EPISODES):
-            r=self.start_episode()
-            return_+=r
             if i%AGGREGATE_RATE==0:
                 weights.put(self.main_network.weights)
-                if not call_for_aggregation:
-                    call_for_aggregation=True
-                    self.cooprator.aggregate(weights,network)
-                self.main_network=network.get()
+                if not call_for_aggregation.value:
+                    print(2)
+                    call_for_aggregation.value=True
+                    self.cooprator.fedavg_aggregate(weights,aggregated_weights)
+                self.main_network.set_weights(aggregated_weights.get())
+                print('aggregation done!')
+            r=self.start_episode()
+            return_+=r
