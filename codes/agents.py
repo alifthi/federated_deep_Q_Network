@@ -5,7 +5,7 @@ from tensorflow.keras.models import Sequential
 from tensorflow.keras import layers as ksl 
 from utils import utils
 import gym 
-import time
+import random
 from config import ENV, STATE_SIZE, BATCH_SIZE,\
                     TARGET_NETWORK_UPDATE_RATE,\
                     DISCOUNT_FACTOR, NUM_OF_EPISODES,\
@@ -81,7 +81,7 @@ class agent:
                 self.train_main_models()
         return return_
     def train_main_models(self):
-        batch=np.random.sample(self.buffer,self.batch_size)
+        batch=random.sample(self.buffer,self.batch_size)
         for state, action, reward, n_state, is_done in batch:
             if is_done:
                 Q=reward
@@ -89,7 +89,7 @@ class agent:
                 Q=reward+self.discount_factor*np.max(self.target_network.predict(n_state[None,:]))
             Q_values=self.main_network.predict(state[None,:])
             Q_values[0][action]=Q
-            self.main_network.fit(state, Q_values, epochs=1)
+            self.main_network.fit(state[None,:], Q_values, epochs=1)
 
     def update_target_network(self):
         self.target_network.set_weights(self.main_network.weights)
@@ -99,34 +99,17 @@ class agent1(agent):
     def __init__(self,cooprator) -> None:
         super().__init__()
         self.cooprator=cooprator
-    def train_local_models(self,weights,aggregated_weights,call_for_aggregation):
+    def train_local_models(self):
         return_=0
-        for i in range(NUM_OF_EPISODES):
-            if i%AGGREGATE_RATE==0:
-                weights.put(self.main_network.weights)
-                # time.sleep(0.1)
-                if not call_for_aggregation.value:
-                    print(1)
-                    call_for_aggregation.value=True 
-                    self.cooprator.fedavg_aggregate(weights,aggregated_weights)
-                self.main_network.set_weights(aggregated_weights.get())
-                print('aggregation done!')
+        for _ in range(NUM_OF_EPISODES):
             r=self.start_episode()
             return_+=r
 class agent2(agent):
     def __init__(self,cooprator) -> None:
         super().__init__()
         self.cooprator=cooprator
-    def train_local_models(self,weights,aggregated_weights,call_for_aggregation):
+    def train_local_models(self):
         return_=0
         for i in range(NUM_OF_EPISODES):
-            if i%AGGREGATE_RATE==0:
-                weights.put(self.main_network.weights)
-                if not call_for_aggregation.value:
-                    print(2)
-                    call_for_aggregation.value=True
-                    self.cooprator.fedavg_aggregate(weights,aggregated_weights)
-                self.main_network.set_weights(aggregated_weights.get())
-                print('aggregation done!')
             r=self.start_episode()
             return_+=r
