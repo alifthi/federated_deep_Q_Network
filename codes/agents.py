@@ -68,7 +68,7 @@ class agent:
             self.env.render()
             if self.total_updates%self.target_network_update_rate==0:
                 self.update_target_network()
-            Q_values=self.main_network.predict(state[None,:])
+            Q_values=self.main_network.predict(state[None,:],verbose=0)
             action=self.sellect_action(Q_value=Q_values)
             n_state, reward, done,_,_=self.env.step(action)
             n_state=self.utils.preprocessing(n_state)
@@ -77,20 +77,25 @@ class agent:
             return_+=reward
             if done:
                 break
-            if len(self.buffer)>self.batch_size:
+            if len(self.buffer)%self.batch_size==0:
                 self.train_main_models()
         return return_
     def train_main_models(self):
         batch=random.sample(self.buffer,self.batch_size)
+        states=[]
+        val=[]
         for state, action, reward, n_state, is_done in batch:
             if is_done:
                 Q=reward
             else:
-                Q=reward+self.discount_factor*np.max(self.target_network.predict(n_state[None,:]))
-            Q_values=self.main_network.predict(state[None,:])
+                Q=reward+self.discount_factor*np.max(self.target_network.predict(n_state[None,:],verbose=0))
+            Q_values=self.main_network.predict(state[None,:],verbose=0)
             Q_values[0][action]=Q
-            self.main_network.fit(state[None,:], Q_values, epochs=1)
-
+            val.append(Q_values)
+            states.append(state[None,:])
+        states=np.concatenate(states,axis=0)
+        val=np.concatenate(val,axis=0)
+        self.main_network.fit(states, val, epochs=1)
     def update_target_network(self):
         self.target_network.set_weights(self.main_network.weights)
     def loss(self):

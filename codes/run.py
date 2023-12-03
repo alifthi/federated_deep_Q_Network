@@ -11,4 +11,6 @@ for _ in range(10):
     agent2.train_local_models()
     weights=[agent1.main_network.weights,agent2.main_network.weights]
     co.fedavg_aggregate(weights)
-    
+    agent1.main_network.set_weights(co.last_weights)
+    agent2.main_network.set_weights(co.last_weights)
+    co.save_model(agent1.main_network)
