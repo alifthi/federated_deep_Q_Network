@@ -1,6 +1,7 @@
 import os
 os.environ["TF_CPP_MIN_LOG_LEVEL"]='3'
 import numpy as np
+from keras import optimizers as optim
 from tensorflow.keras.models import Sequential
 from tensorflow.keras import layers as ksl 
 from utils import utils
@@ -9,8 +10,7 @@ import random
 from config import ENV, STATE_SIZE, BATCH_SIZE,\
                     TARGET_NETWORK_UPDATE_RATE,\
                     DISCOUNT_FACTOR, NUM_OF_EPISODES,\
-                    AGGREGATE_RATE, NUM_OF_TIMESTEPS
-
+                     NUM_OF_TIMESTEPS,MODE
 class agent:
     def __init__(self) -> None:
         self.state_size=STATE_SIZE
@@ -41,15 +41,15 @@ class agent:
         model.add(ksl.MaxPooling2D(2))        
         model.add(ksl.Activation('relu'))
 
-        model.add(ksl.Conv2D(32, kernel_size=3, strides=1, padding='same'))
-        model.add(ksl.MaxPooling2D(2))        
-        model.add(ksl.Activation('relu'))
+        # model.add(ksl.Conv2D(32, kernel_size=3, strides=1, padding='same'))
+        # model.add(ksl.MaxPooling2D(2))        
+        # model.add(ksl.Activation('relu'))
         
         model.add(ksl.Flatten())
 
         model.add(ksl.Dense(128, activation='relu'))
         model.add(ksl.Dense(self.action_size, activation='linear'))
-        model.compile(loss='mse',optimizer='sgd')
+        model.compile(loss='mae',optimizer=optim.SGD(0.001))
         return model
     def update_buffer(self, state, action, reward, n_state, is_done):
         self.buffer.append([state, action, reward, n_state, is_done])
@@ -62,10 +62,12 @@ class agent:
         return_=0
         self.update_target_network()
         state,_=self.env.reset()
+        state=self.env.render()
         state=self.utils.preprocessing(image=state)
         for _ in range(self.num_of_timesteps):
+            # cv.imshow('name',state)
             self.total_updates+=1
-            self.env.render()
+            # self.env.render()
             if self.total_updates%self.target_network_update_rate==0:
                 self.update_target_network()
             Q_values=self.main_network.predict(state[None,:],verbose=0)
@@ -79,12 +81,22 @@ class agent:
                 break
             if len(self.buffer)%self.batch_size==0:
                 self.train_main_models()
+            # if cv.waitKey(25) & 0xFF == ord('q'):
+            #     break   
+        # cv.destroyAllWindows()
         return return_
+
     def train_main_models(self):
         batch=random.sample(self.buffer,self.batch_size)
         states=[]
         val=[]
+        i=0
         for state, action, reward, n_state, is_done in batch:
+            if action==5 and i%10==0:
+                i+=1
+                continue
+            elif action==5 and not i%10==0:
+                i+=1
             if is_done:
                 Q=reward
             else:
@@ -95,7 +107,7 @@ class agent:
             states.append(state[None,:])
         states=np.concatenate(states,axis=0)
         val=np.concatenate(val,axis=0)
-        self.main_network.fit(states, val, epochs=1)
+        self.main_network.fit(states, val, batch_size=16,epochs=2)
     def update_target_network(self):
         self.target_network.set_weights(self.main_network.weights)
     def loss(self):
@@ -105,16 +117,16 @@ class agent1(agent):
         super().__init__()
         self.cooprator=cooprator
     def train_local_models(self):
-        return_=0
         for _ in range(NUM_OF_EPISODES):
             r=self.start_episode()
-            return_+=r
+            self.main_network.save('../model/model1.h5')
+            print(f'[INFO] 1.{_}th round ended, Total return {r}!')
 class agent2(agent):
     def __init__(self,cooprator) -> None:
         super().__init__()
         self.cooprator=cooprator
     def train_local_models(self):
-        return_=0
-        for i in range(NUM_OF_EPISODES):
+        for _ in range(NUM_OF_EPISODES):
             r=self.start_episode()
-            return_+=r
+            self.main_network.save('../model/model2.h5')
+            print(f'[INFO] 2.{_}th round ended, Total return {r}!')
