@@ -1,15 +1,16 @@
 import os
 os.environ["TF_CPP_MIN_LOG_LEVEL"]='3'
 import numpy as np
+from keras.optimizers import SGD
+import tensorflow as tf
 from tensorflow.keras.models import Sequential
 from tensorflow.keras import layers as ksl 
 from utils import utils
 import gym 
-import time
 from config import ENV, STATE_SIZE, BATCH_SIZE,\
                     TARGET_NETWORK_UPDATE_RATE,\
                     DISCOUNT_FACTOR, NUM_OF_EPISODES,\
-                    AGGREGATE_RATE, NUM_OF_TIMESTEPS
+                    AGGREGATE_RATE, NUM_OF_TIMESTEPS,MODE
 
 class agent:
     def __init__(self) -> None:
@@ -26,7 +27,8 @@ class agent:
         self.total_updates=1
         self.main_network=self.build_model()
         self.target_network=self.build_model()
-        
+        self.prox_factor=0.05
+        self.last_aggregation_weights=None
     def build_model(self):
         model = Sequential()
         model.add(ksl.Conv2D(32,kernel_size=3, padding='same', input_shape=self.state_size))
@@ -49,7 +51,10 @@ class agent:
 
         model.add(ksl.Dense(128, activation='relu'))
         model.add(ksl.Dense(self.action_size, activation='linear'))
-        model.compile(loss='mse',optimizer='sgd')
+        if MODE=='FedAvg':
+            model.compile(loss='mae',optimizer='sgd')
+        elif MODE=='FedProx':
+            pass
         return model
     def update_buffer(self, state, action, reward, n_state, is_done):
         self.buffer.append([state, action, reward, n_state, is_done])
@@ -93,8 +98,13 @@ class agent:
 
     def update_target_network(self):
         self.target_network.set_weights(self.main_network.weights)
-    def loss(self):
-        pass
+        
+    def loss(self,yTrue,yPred):
+        dist_aggregation=[]
+        for i,layer in enumerate(self.last_aggregation_weights):
+            dist_aggregation.append(layer-self.main_network[i])
+        losses=tf.keras.losses.MAE(yTrue,yPred)+tf.norm(dist_aggregation)**2
+        return losses
 class agent1(agent):
     def __init__(self,cooprator) -> None:
         super().__init__()
