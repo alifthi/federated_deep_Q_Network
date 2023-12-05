@@ -5,6 +5,7 @@ from keras.optimizers import SGD
 import tensorflow as tf
 from tensorflow.keras.models import Sequential
 from tensorflow.keras import layers as ksl 
+from tensorflow.keras.activations import softmax
 from utils import utils
 import gym 
 import random
@@ -35,13 +36,13 @@ class agent:
         model.add(ksl.MaxPooling2D(2))
         model.add(ksl.Activation('relu'))
 
-        model.add(ksl.Conv2D(64,kernel_size=3, strides=2, padding='same'))
+        model.add(ksl.Conv2D(64,kernel_size=3, padding='same'))
         model.add(ksl.MaxPooling2D(2))
         model.add(ksl.Activation('relu'))
 
-        model.add(ksl.Conv2D(64, kernel_size=3, strides=1, padding='same'))
-        model.add(ksl.MaxPooling2D(2))        
-        model.add(ksl.Activation('relu'))
+        # model.add(ksl.Conv2D(64, kernel_size=3, strides=1, padding='same'))
+        # model.add(ksl.MaxPooling2D(2))        
+        # model.add(ksl.Activation('relu'))
 
         # model.add(ksl.Conv2D(32, kernel_size=3, strides=1, padding='same'))
         # model.add(ksl.MaxPooling2D(2))        
@@ -51,10 +52,11 @@ class agent:
 
         model.add(ksl.Dense(128, activation='relu'))
         model.add(ksl.Dense(self.action_size, activation='linear'))
+        model.summary()
         if MODE=='FedAvg':
-            model.compile(loss='mae',optimizer='sgd')
+            model.compile(loss='mae',optimizer=SGD(0.01))
         elif MODE=='FedProx':
-            pass
+            model.compile(loss=self.loss,optimizer='sgd')
         return model
     def update_buffer(self, state, action, reward, n_state, is_done):
         self.buffer.append([state, action, reward, n_state, is_done])
@@ -63,6 +65,10 @@ class agent:
         if np.random.uniform(0,1)>self.eps:
             return np.random.randint(self.action_size)
         return np.argmax(Q_value[0])
+    def sellect_action_dist(self,Q_value):
+        dist=tf.nn.softmax(Q_value).numpy()[0]
+        dist=dist/sum(list(dist))
+        return np.random.choice(np.arange(self.action_size),p=dist)
     def start_episode(self):
         return_=0
         self.update_target_network()
@@ -70,13 +76,12 @@ class agent:
         state=self.env.render()
         state=self.utils.preprocessing(image=state)
         for _ in range(self.num_of_timesteps):
-            # cv.imshow('name',state)
             self.total_updates+=1
             # self.env.render()
             if self.total_updates%self.target_network_update_rate==0:
                 self.update_target_network()
             Q_values=self.main_network.predict(state[None,:],verbose=0)
-            action=self.sellect_action(Q_value=Q_values)
+            action=self.sellect_action_dist(Q_value=Q_values)
             n_state, reward, done,_,_=self.env.step(action)
             n_state=self.utils.preprocessing(n_state)
             self.update_buffer(action=action, reward=reward, n_state=n_state, state=state,is_done=done)
@@ -86,9 +91,6 @@ class agent:
                 break
             if len(self.buffer)%self.batch_size==0:
                 self.train_main_models()
-            # if cv.waitKey(25) & 0xFF == ord('q'):
-            #     break   
-        # cv.destroyAllWindows()
         return return_
 
     def train_main_models(self):
@@ -119,8 +121,8 @@ class agent:
     def loss(self,yTrue,yPred):
         dist_aggregation=[]
         for i,layer in enumerate(self.last_aggregation_weights):
-            dist_aggregation.append(layer-self.main_network[i])
-        losses=tf.keras.losses.MAE(yTrue,yPred)+tf.norm(dist_aggregation)**2
+            dist_aggregation.append(tf.norm(layer-self.main_network.weights[i])**2)
+        losses=tf.keras.losses.MAE(yTrue,yPred)+sum(dist_aggregation)
         return losses
 class agent1(agent):
     def __init__(self,cooprator) -> None:
