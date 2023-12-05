@@ -6,10 +6,10 @@ from config import MODEL_PATH
 co=cooprator()
 agent1=agent1(co)
 agent2=agent2(co)
-agent1.main_network=tf.keras.models.load_model(MODEL_PATH+'/model.h5',{'loss':agent1.loss})
-agent2.main_network=tf.keras.models.load_model(MODEL_PATH+'/model.h5',{'loss':agent1.loss})
-agent1.target_network=tf.keras.models.load_model(MODEL_PATH+'/model.h5',{'loss':agent1.loss})
-agent2.target_network=tf.keras.models.load_model(MODEL_PATH+'/model.h5',{'loss':agent1.loss})
+# agent1.main_network=tf.keras.models.load_model(MODEL_PATH+'/model.h5',{'loss':agent1.loss})
+# agent2.main_network=tf.keras.models.load_model(MODEL_PATH+'/model.h5',{'loss':agent1.loss})
+# agent1.target_network=tf.keras.models.load_model(MODEL_PATH+'/model.h5',{'loss':agent1.loss})
+# agent2.target_network=tf.keras.models.load_model(MODEL_PATH+'/model.h5',{'loss':agent1.loss})
 for _ in range(10):
     print('>>>>>>>> ',_)
     weights=[agent1.main_network.weights,agent2.main_network.weights]

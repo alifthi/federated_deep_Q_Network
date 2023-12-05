@@ -40,23 +40,23 @@ class agent:
         model.add(ksl.MaxPooling2D(2))
         model.add(ksl.Activation('relu'))
 
-        # model.add(ksl.Conv2D(64, kernel_size=3, strides=1, padding='same'))
-        # model.add(ksl.MaxPooling2D(2))        
-        # model.add(ksl.Activation('relu'))
+        model.add(ksl.Conv2D(64, kernel_size=3, strides=1, padding='same'))
+        model.add(ksl.MaxPooling2D(2))        
+        model.add(ksl.Activation('relu'))
 
-        # model.add(ksl.Conv2D(32, kernel_size=3, strides=1, padding='same'))
-        # model.add(ksl.MaxPooling2D(2))        
-        # model.add(ksl.Activation('relu'))
+        model.add(ksl.Conv2D(32, kernel_size=3, strides=1, padding='same'))
+        model.add(ksl.MaxPooling2D(2))        
+        model.add(ksl.Activation('relu'))
         
         model.add(ksl.Flatten())
 
-        model.add(ksl.Dense(128, activation='relu'))
+        model.add(ksl.Dense(64, activation='relu'))
         model.add(ksl.Dense(self.action_size, activation='linear'))
         model.summary()
         if MODE=='FedAvg':
             model.compile(loss='mae',optimizer=SGD(0.01))
         elif MODE=='FedProx':
-            model.compile(loss=self.loss,optimizer='sgd')
+            model.compile(loss=self.loss,optimizer=SGD(0.01))
         return model
     def update_buffer(self, state, action, reward, n_state, is_done):
         self.buffer.append([state, action, reward, n_state, is_done])
@@ -116,13 +116,13 @@ class agent:
         val=np.concatenate(val,axis=0)
         self.main_network.fit(states, val, batch_size=16,epochs=2)
     def update_target_network(self):
-        self.target_network.set_weights(self.main_network.weights)
-        
+        self.target_network.set_weights(self.main_network.weights)  
     def loss(self,yTrue,yPred):
-        dist_aggregation=[]
-        for i,layer in enumerate(self.last_aggregation_weights):
-            dist_aggregation.append(tf.norm(layer-self.main_network.weights[i])**2)
-        losses=tf.keras.losses.MAE(yTrue,yPred)+sum(dist_aggregation)
+        model_difference = tf.nest.map_structure(lambda a, b: a - b,
+                                        self.main_network.weights,
+                                        self.last_aggregation_weights)
+        model_difference=tf.linalg.global_norm(model_difference)**2
+        losses=tf.keras.losses.MAE(yTrue,yPred)+model_difference
         return losses
 class agent1(agent):
     def __init__(self,cooprator) -> None:
