@@ -27,10 +27,10 @@ for i in range(10):
     cv.imshow('Pacman',cv.resize(state,[256,256]))
     Q_values=model.predict(state[None,:],verbose=0)
     action=np.argmax(Q_values)
-    dist=tf.nn.softmax(Q_values).numpy()[0]
-    dist=dist/sum(list(dist))
-    print(dist)
-    # action=agent.sellect_action(Q_values)
+    # dist=tf.nn.softmax(Q_values).numpy()[0]
+    # dist=dist/sum(list(dist))
+    print(action)
+    action=agent.sellect_action(Q_values)
     n_state, reward, done,_,_=env.step(action)
     state=env.render()
     state=utils.preprocessing(state)

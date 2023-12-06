@@ -22,7 +22,7 @@ class agent:
         self.buffer=[]
         self.env=gym.make(ENV,render_mode='rgb_array')
         self.action_size=self.env.action_space.n
-        self.eps=0.9
+        self.eps=0.8
         self.utils=utils()
         self.target_network_update_rate=TARGET_NETWORK_UPDATE_RATE
         self.total_updates=1
@@ -54,9 +54,9 @@ class agent:
         model.add(ksl.Dense(self.action_size, activation='linear'))
         model.summary()
         if MODE=='FedAvg':
-            model.compile(loss='mae',optimizer=SGD(0.01))
+            model.compile(loss='mae',optimizer=SGD(0.01),metrics=['mae','mse'])
         elif MODE=='FedProx':
-            model.compile(loss=self.loss,optimizer=SGD(0.01))
+            model.compile(loss=self.FedProx_loss,optimizer=SGD(0.01),metrics=['mae','mse'])
         return model
     def update_buffer(self, state, action, reward, n_state, is_done):
         self.buffer.append([state, action, reward, n_state, is_done])
@@ -81,7 +81,7 @@ class agent:
             if self.total_updates%self.target_network_update_rate==0:
                 self.update_target_network()
             Q_values=self.main_network.predict(state[None,:],verbose=0)
-            action=self.sellect_action_dist(Q_value=Q_values)
+            action=self.sellect_action(Q_value=Q_values)
             n_state, reward, done,_,_=self.env.step(action)
             n_state=self.utils.preprocessing(n_state)
             self.update_buffer(action=action, reward=reward, n_state=n_state, state=state,is_done=done)
@@ -114,16 +114,34 @@ class agent:
             states.append(state[None,:])
         states=np.concatenate(states,axis=0)
         val=np.concatenate(val,axis=0)
-        self.main_network.fit(states, val, batch_size=16,epochs=2)
+        # self.train(states, val, batch_size=32,epochs=2)
+        self.main_network.fit(states, val, batch_size=32,epochs=2)
     def update_target_network(self):
         self.target_network.set_weights(self.main_network.weights)  
-    def loss(self,yTrue,yPred):
+        print('updating Target Network...')
+    def FedProx_loss(self,yTrue,yPred):
         model_difference = tf.nest.map_structure(lambda a, b: a - b,
                                         self.main_network.weights,
                                         self.last_aggregation_weights)
         model_difference=tf.linalg.global_norm(model_difference)**2
-        losses=tf.keras.losses.MAE(yTrue,yPred)+model_difference
+        losses=tf.math.reduce_mean(tf.keras.losses.MSE(yTrue,yPred))+model_difference
         return losses
+    def train(self,states,values,batch_size,epochs):
+        sgd=SGD(0.01)
+        for i in range(epochs):
+            for iteration in range(int(np.shape(states)[0]/batch_size)):    
+                batch_states=states[iteration*batch_size:(iteration+1)*batch_size]
+                batch_values=values[iteration*batch_size:(iteration+1)*batch_size]
+                with tf.GradientTape() as tape:
+                    tape.watch(self.main_network.weights)
+                    outs=self.main_network(batch_states)
+                    losses=self.FedProx_loss(yTrue=batch_values,yPred=outs)
+                gradients=tape.gradient(losses,self.main_network.weights)
+                sgd.apply_gradients(zip(gradients,self.main_network.weights))
+                print(losses)
+                    
+            
+
 class agent1(agent):
     def __init__(self,cooprator) -> None:
         super().__init__()
