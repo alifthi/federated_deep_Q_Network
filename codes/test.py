@@ -5,15 +5,13 @@ from utils import utils
 import numpy as np
 import cv2 as cv
 import gym 
-from matplotlib import pyplot as plt
-import time
 from agents import agent
 from config import ENV, MODEL_PATH
 
 env=gym.make(ENV,render_mode='rgb_array')
 utils=utils()
-model=tf.keras.models.load_model(MODEL_PATH+'/model.h5',
-                                 custom_objects={'loss':'mae'})
+model=tf.keras.models.load_model(MODEL_PATH+'/model1.h5',
+                                 custom_objects={'FedProx_loss':'nothing'})
 agent=agent()
 i=0
 
