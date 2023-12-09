@@ -27,10 +27,12 @@ class agent:
         self.target_network_update_rate=TARGET_NETWORK_UPDATE_RATE
         self.total_updates=1
         self.main_network=self.build_model()
-        # self.target_network=self.build_model()
+        self.target_network=self.build_model()
         self.prox_factor=0.05
         self.last_aggregation_weights=None
-      
+        if MODE=='FedADMM':
+            self.roh=0.2
+            self.yk=self.build_model().weights
     def build_model(self):
         model = Sequential()
         model.add(ksl.Conv2D(32,kernel_size=3, padding='same', input_shape=self.state_size))
@@ -58,11 +60,8 @@ class agent:
             model.compile(loss='mae',optimizer=SGD(0.01),metrics=['mae','mse'])
         elif MODE=='FedProx':
             model.compile(loss=self.FedProx_loss,optimizer=SGD(0.01),metrics=['mae','mse'])
-        elif MODE=='FedADMM':
-            self.roh=0.1
-            self.yk=[]
-            for i in model.weights:
-                self.yk.append(tf.reshape(i,[1,-1]))
+        else:
+            model.compile(loss=self.FedProx_loss,optimizer=SGD(0.01),metrics=['mae','mse'])
         return model
     def update_buffer(self, state, action, reward, n_state, is_done):
         self.buffer.append([state, action, reward, n_state, is_done])
@@ -77,14 +76,12 @@ class agent:
         return np.random.choice(np.arange(self.action_size),p=dist)
     def start_episode(self):
         return_=0
-        self.update_target_network()
+        # self.update_target_network()
         state,_=self.env.reset()
         state=self.env.render()
         state=self.utils.preprocessing(image=state)
         for i in range(self.num_of_timesteps):
             self.total_updates+=1
-            # self.env.render()
-            # if self.total_updates%self.target_network_update_rate==0:
             Q_values=self.main_network.predict(state[None,:],verbose=0)
             action=self.sellect_action(Q_value=Q_values)
             n_state, reward, done,_,_=self.env.step(action)
@@ -93,11 +90,9 @@ class agent:
             state=n_state
             return_+=reward
 
-            if done or i==32:
+            if done:
                 break
-            # if len(self.buffer)%self.batch_size==0:
         self.batch_size=np.shape(self.buffer)[0]
-
         self.train_main_models()
         self.update_target_network()
         return return_
@@ -140,11 +135,12 @@ class agent:
                                         self.last_aggregation_weights)
         l=[]
         for i, layer in enumerate(self.yk):
-            l.append(tf.tensordot(layer,tf.transpose(tf.reshape(model_difference[i],[1,-1])),1))
+            l.append(tf.tensordot(tf.reshape(layer,[1,-1]),
+                                  tf.transpose(tf.reshape(model_difference[i],[1,-1])),1))
         residual=sum(l)
         model_difference=tf.linalg.global_norm(model_difference)**2
         losses=tf.math.reduce_mean(tf.keras.losses.MSE(yTrue,yPred))+\
-                                    model_difference+residual
+                                    self.roh*model_difference/2+residual
         return losses      
     def train(self,states,values,batch_size,epochs):
         sgd=SGD(0.01)
