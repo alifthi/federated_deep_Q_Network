@@ -165,15 +165,16 @@ class agent:
                                                 gradients)
                     new_weights=tf.nest.map_structure(lambda a,b: a+b,
                                                 self.main_network.weights,epsilon)
-                    self.main_network.set_weights(new_weights)
+                    tmp_model=tf.keras.models.clone_model(self.main_network)
+                    tmp_model.set_weights(new_weights)
                     with tf.GradientTape() as tape:
-                        tape.watch(self.main_network.weights)
-                        outs=self.main_network(batch_states)
+                        tape.watch(tmp_model.weights)
+                        outs=tmp_model(batch_states)
                         if MODE=='FedProx':
                             losses=self.FedProx_loss(yTrue=batch_values,yPred=outs)
                         elif MODE=='FedADMM':
                             losses=self.ADMM_loss(yTrue=batch_values,yPred=outs)
-                    gradients=tape.gradient(losses,self.main_network.weights)       
+                    gradients=tape.gradient(losses,tmp_model.weights)       
                 sgd.apply_gradients(zip(gradients,self.main_network.weights))
                 print(losses)
    
