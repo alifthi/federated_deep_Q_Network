@@ -22,14 +22,15 @@ for i in range(10):
   state=utils.preprocessing(state)
   while True:
     i+=1
+    state=state+np.random.normal(0,0.05,size=state.shape)
     cv.imshow('Pacman',cv.resize(state,[256,256]))
     Q_values=model.predict(state[None,:],verbose=0)
     action=np.argmax(Q_values)
     # dist=tf.nn.softmax(Q_values).numpy()[0]
     # dist=dist/sum(list(dist))
-    print(action)
     action=agent.sellect_action(Q_values)
     n_state, reward, done,_,_=env.step(action)
+    print(reward)
     state=env.render()
     state=utils.preprocessing(state)
     if cv.waitKey(25) & 0xFF == ord('q'):

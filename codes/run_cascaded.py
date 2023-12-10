@@ -17,10 +17,10 @@ agent2=agent2()
 for _ in range(50):
     print('>>>>>>>> ',_)
     weights=[agent1.main_network.weights,agent2.main_network.weights]
-    y=[agent1.yk,agent2.yk]
     if not MODE=='FedADMM':
         co.fedavg_aggregate(weights)
     else:
+        y=[agent1.yk,agent2.yk]
         co.fedADMM_aggregate(weights,y)
         agent1.yk=co.yk_1
         agent2.yk=co.yk_2

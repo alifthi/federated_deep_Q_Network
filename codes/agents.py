@@ -12,7 +12,7 @@ import random
 from config import ENV, STATE_SIZE, BATCH_SIZE,\
                     TARGET_NETWORK_UPDATE_RATE,\
                     DISCOUNT_FACTOR, NUM_OF_EPISODES,\
-                     NUM_OF_TIMESTEPS,MODE
+                     NUM_OF_TIMESTEPS,MODE,ROBUST_METHODE
 class agent:
     def __init__(self) -> None:
         self.state_size=STATE_SIZE
@@ -89,7 +89,6 @@ class agent:
             self.update_buffer(action=action, reward=reward, n_state=n_state, state=state,is_done=done)
             state=n_state
             return_+=reward
-
             if done:
                 break
         self.batch_size=np.shape(self.buffer)[0]
@@ -117,8 +116,10 @@ class agent:
             states.append(state[None,:])
         states=np.concatenate(states,axis=0)
         val=np.concatenate(val,axis=0)
-        self.train(states, val, batch_size=32,epochs=2)
-        # self.main_network.fit(states, val, batch_size=32,epochs=2)
+        if MODE=='FedProx' or MODE=='FedADMM':
+            self.train(states, val, batch_size=32,epochs=2)
+        else:
+            self.main_network.fit(states, val, batch_size=32,epochs=2)
     def update_target_network(self):
         self.target_network.set_weights(self.main_network.weights)  
         print('updating Target Network...')
@@ -141,7 +142,7 @@ class agent:
         model_difference=tf.linalg.global_norm(model_difference)**2
         losses=tf.math.reduce_mean(tf.keras.losses.MSE(yTrue,yPred))+\
                                     self.roh*model_difference/2+residual
-        return losses      
+        return losses    
     def train(self,states,values,batch_size,epochs):
         sgd=SGD(0.01)
         if MODE=='FedADMM':
@@ -157,11 +158,25 @@ class agent:
                         losses=self.FedProx_loss(yTrue=batch_values,yPred=outs)
                     elif MODE=='FedADMM':
                         losses=self.ADMM_loss(yTrue=batch_values,yPred=outs)
+                        
                 gradients=tape.gradient(losses,self.main_network.weights)
+                if ROBUST_METHODE=='SAM':
+                    epsilon = tf.nest.map_structure(lambda a: a/tf.linalg.norm(a),
+                                                gradients)
+                    new_weights=tf.nest.map_structure(lambda a,b: a+b,
+                                                self.main_network.weights,epsilon)
+                    self.main_network.set_weights(new_weights)
+                    with tf.GradientTape() as tape:
+                        tape.watch(self.main_network.weights)
+                        outs=self.main_network(batch_states)
+                        if MODE=='FedProx':
+                            losses=self.FedProx_loss(yTrue=batch_values,yPred=outs)
+                        elif MODE=='FedADMM':
+                            losses=self.ADMM_loss(yTrue=batch_values,yPred=outs)
+                    gradients=tape.gradient(losses,self.main_network.weights)       
                 sgd.apply_gradients(zip(gradients,self.main_network.weights))
                 print(losses)
-                    
-            
+   
 
 class agent1(agent):
     def train_local_models(self):
