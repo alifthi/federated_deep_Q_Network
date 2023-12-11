@@ -1,6 +1,5 @@
 from agents import agent1,agent2
 from cooprator import cooprator
-from multiprocessing import Process, Queue, Value
 import tensorflow as tf
 from config import MODEL_PATH,MODE
 co=cooprator()
@@ -14,8 +13,8 @@ agent2=agent2()
 # agent2.main_network=model2
 # agent1.target_network=model1
 # agent2.target_network=model2
-for _ in range(50):
-    print('>>>>>>>> ',_)
+for i in range(50):
+    print('Iteration....',i)
     weights=[agent1.main_network.weights,agent2.main_network.weights]
     if not MODE=='FedADMM':
         co.fedavg_aggregate(weights)

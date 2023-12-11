@@ -10,7 +10,7 @@ from config import ENV, MODEL_PATH
 
 env=gym.make(ENV,render_mode='rgb_array')
 utils=utils()
-model=tf.keras.models.load_model(MODEL_PATH+'/model1.h5',
+model=tf.keras.models.load_model(MODEL_PATH+'/model.h5',
                                  custom_objects={'FedProx_loss':'nothing'})
 agent=agent()
 i=0
@@ -22,13 +22,10 @@ for i in range(10):
   state=utils.preprocessing(state)
   while True:
     i+=1
-    state=state+np.random.normal(0,0.05,size=state.shape)
     cv.imshow('Pacman',cv.resize(state,[256,256]))
+    # state=state+np.random.normal(0,1,size=state.shape)
     Q_values=model.predict(state[None,:],verbose=0)
     action=np.argmax(Q_values)
-    # dist=tf.nn.softmax(Q_values).numpy()[0]
-    # dist=dist/sum(list(dist))
-    action=agent.sellect_action(Q_values)
     n_state, reward, done,_,_=env.step(action)
     print(reward)
     state=env.render()

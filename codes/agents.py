@@ -5,7 +5,6 @@ from keras.optimizers import SGD
 import tensorflow as tf
 from tensorflow.keras.models import Sequential
 from tensorflow.keras import layers as ksl 
-from tensorflow.keras.activations import softmax
 from utils import utils
 import gym 
 import random
@@ -22,7 +21,7 @@ class agent:
         self.buffer=[]
         self.env=gym.make(ENV,render_mode='rgb_array')
         self.action_size=self.env.action_space.n
-        self.eps=0.6
+        self.eps=0.8
         self.utils=utils()
         self.target_network_update_rate=TARGET_NETWORK_UPDATE_RATE
         self.total_updates=1
@@ -76,9 +75,7 @@ class agent:
         return np.random.choice(np.arange(self.action_size),p=dist)
     def start_episode(self):
         return_=0
-        # self.update_target_network()
         state,_=self.env.reset()
-        state=self.env.render()
         state=self.utils.preprocessing(image=state)
         for i in range(self.num_of_timesteps):
             self.total_updates+=1
@@ -89,16 +86,17 @@ class agent:
             self.update_buffer(action=action, reward=reward, n_state=n_state, state=state,is_done=done)
             state=n_state
             return_+=reward
+            if i >1 and i%256==0:
+                self.train_main_models()
+            if i>1 and i%512==0: 
+                self.update_target_network()
             if done:
                 break
-        self.batch_size=np.shape(self.buffer)[0]
-        self.train_main_models()
-        self.update_target_network()
         return return_
     def train_main_models(self):
-        batch=random.sample(self.buffer,self.batch_size)
+        batch=random.sample(self.buffer,64)
         states=[]
-        val=[]
+        value=[]
         i=0
         for state, action, reward, n_state, is_done in batch:
             if action==5 and i%10==0:
@@ -112,14 +110,11 @@ class agent:
                 Q=reward+self.discount_factor*np.max(self.target_network.predict(n_state[None,:],verbose=0))
             Q_values=self.main_network.predict(state[None,:],verbose=0)
             Q_values[0][action]=Q
-            val.append(Q_values)
+            value.append(Q_values)
             states.append(state[None,:])
         states=np.concatenate(states,axis=0)
-        val=np.concatenate(val,axis=0)
-        if MODE=='FedProx' or MODE=='FedADMM':
-            self.train(states, val, batch_size=32,epochs=2)
-        else:
-            self.main_network.fit(states, val, batch_size=32,epochs=2)
+        value=np.concatenate(value,axis=0)
+        self.train(states, value, batch_size=self.batch_size,epochs=5)
     def update_target_network(self):
         self.target_network.set_weights(self.main_network.weights)  
         print('updating Target Network...')
@@ -145,8 +140,6 @@ class agent:
         return losses    
     def train(self,states,values,batch_size,epochs):
         sgd=SGD(0.01)
-        if MODE=='FedADMM':
-            epochs=1
         for _ in range(epochs):
             for iteration in range(int(np.shape(states)[0]/batch_size)):    
                 batch_states=states[iteration*batch_size:(iteration+1)*batch_size]
@@ -158,11 +151,14 @@ class agent:
                         losses=self.FedProx_loss(yTrue=batch_values,yPred=outs)
                     elif MODE=='FedADMM':
                         losses=self.ADMM_loss(yTrue=batch_values,yPred=outs)
+                    elif MODE=='FedAvg':
+                        losses=tf.keras.losses.MSE(batch_values,outs)
+                        losses=tf.math.reduce_mean(losses)
                         
                 gradients=tape.gradient(losses,self.main_network.weights)
                 if ROBUST_METHODE=='SAM':
-                    epsilon = tf.nest.map_structure(lambda a: a/tf.linalg.norm(a),
-                                                gradients)
+                    epsilon = tf.nest.map_structure(lambda a: 0.1*a/tf.linalg.norm(a),
+                                                    gradients)
                     new_weights=tf.nest.map_structure(lambda a,b: a+b,
                                                 self.main_network.weights,epsilon)
                     tmp_model=tf.keras.models.clone_model(self.main_network)
@@ -174,9 +170,11 @@ class agent:
                             losses=self.FedProx_loss(yTrue=batch_values,yPred=outs)
                         elif MODE=='FedADMM':
                             losses=self.ADMM_loss(yTrue=batch_values,yPred=outs)
+                        elif MODE=='FedAvg':
+                            losses=tf.keras.losses.MSE(batch_values,outs)
                     gradients=tape.gradient(losses,tmp_model.weights)       
                 sgd.apply_gradients(zip(gradients,self.main_network.weights))
-                print(losses)
+                print(f'Mode: {MODE}, loss: {losses.numpy()}')
    
 
 class agent1(agent):

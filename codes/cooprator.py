@@ -1,4 +1,4 @@
-from config import NUMBER_OF_AGENTS, MODEL_PATH, MODE
+from config import NUMBER_OF_AGENTS, MODEL_PATH
 import tensorflow as tf
 class cooprator:
     def __init__(self) -> None:
@@ -27,9 +27,6 @@ class cooprator:
         for ag in range(self.number_of_agents):
             layer_weights=[]
             for i in range(len(agents_weights[0])):
-                # layer_weights.append(self.roh*agents_weights[ag][i])
-                # layer_weights.append(-self.roh*self.last_weights[ag])
-                # layer_weights.append(y_k[ag][i])     
                 layer_weights=y_k[ag][i]+self.roh*(agents_weights[ag][i]-self.last_weights[i])
                 if ag==0:
                     model1_weights.append(layer_weights/self.number_of_agents)
