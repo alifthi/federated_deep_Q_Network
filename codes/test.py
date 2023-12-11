@@ -23,7 +23,7 @@ for i in range(10):
   while True:
     i+=1
     cv.imshow('Pacman',cv.resize(state,[256,256]))
-    # state=state+np.random.normal(0,1,size=state.shape)
+    state=state+np.random.normal(0,5,size=state.shape)
     Q_values=model.predict(state[None,:],verbose=0)
     action=np.argmax(Q_values)
     n_state, reward, done,_,_=env.step(action)
