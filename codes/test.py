@@ -15,23 +15,28 @@ model=tf.keras.models.load_model(MODEL_PATH+'/model.h5',
 agent=agent()
 i=0
 
-
-for i in range(10):
+num=20
+for _ in range(num):
   state,_=env.reset()
   env.render()
-  state=utils.preprocessing(state)
+  n_action=12
   while True:
-    i+=1
-    cv.imshow('Pacman',cv.resize(state,[256,256]))
-    state=state+np.random.normal(0,5,size=state.shape)
+    
+    sstate=env.render()
+    
+    # cv.imshow('Pacman',cv.resize(sstate,[256,256]))
+    state=state+np.random.normal(0,1,size=state.shape)
     Q_values=model.predict(state[None,:],verbose=0)
     action=np.argmax(Q_values)
+    # action=np.random.randint(2)
+    # action=agent.sellect_action(Q_values)
     n_state, reward, done,_,_=env.step(action)
-    print(reward)
-    state=env.render()
-    state=utils.preprocessing(state)
-    if cv.waitKey(25) & 0xFF == ord('q'):
-      break
+    i+=reward
+    state=n_state
+    n_action=action
+    # if cv.waitKey(25) & 0xFF == ord('q'):
+    #   break
     if done:
-        cv.destroyAllWindows()
+        # cv.destroyAllWindows()
         break
+print(i/num)

@@ -1,17 +1,16 @@
 from config import NUMBER_OF_AGENTS, MODEL_PATH
-import tensorflow as tf
 class cooprator:
     def __init__(self) -> None:
         self.is_ready=False
         self.number_of_agents=NUMBER_OF_AGENTS
         self.roh=0.9
-    def fedavg_aggregate(self,agents_weights):
+    def fedavg_aggregate(self,agents_weights,total_rewards):
         model_weights=[]
         for i in range(len(agents_weights[0])):
             layer_weights=[]
             for ag in range(self.number_of_agents):
-                layer_weights.append(agents_weights[ag][i])
-            model_weights.append(sum(layer_weights)/self.number_of_agents)
+                layer_weights.append(agents_weights[ag][i]*total_rewards[ag])
+            model_weights.append(sum(layer_weights)/sum(total_rewards))
         self.last_weights=model_weights
     def fedADMM_aggregate(self,agents_weights,y_k):
         model_weights=[]

@@ -1,23 +1,21 @@
 from agents import agent1,agent2
 from cooprator import cooprator
-import tensorflow as tf
-from config import MODEL_PATH,MODE
+import numpy as np
+from config import MODE, ROBUST_METHODE
+if ROBUST_METHODE=='AE':
+    from Autoencoder import AutoEncoder
+    aemodel=AutoEncoder()    
 co=cooprator()
 agent1=agent1()
 agent2=agent2()
-# model1=tf.keras.models.load_model(MODEL_PATH+'/model.h5',{'FedProx_loss':agent1.FedProx_loss})
-# model1.compile(loss=agent1.FedProx_loss,optimizer=tf.keras.optimizers.SGD(0.1),metrics=['mae','mse'])
-# model2=tf.keras.models.load_model(MODEL_PATH+'/model.h5',{'FedProx_loss':agent2.FedProx_loss})
-# model2.compile(loss=agent2.FedProx_loss,optimizer=tf.keras.optimizers.SGD(0.1),metrics=['mae','mse'])
-# agent1.main_network=model1
-# agent2.main_network=model2
-# agent1.target_network=model1
-# agent2.target_network=model2
-for i in range(50):
+for i in range(500):
     print('Iteration....',i)
     weights=[agent1.main_network.weights,agent2.main_network.weights]
     if not MODE=='FedADMM':
-        co.fedavg_aggregate(weights)
+        if i ==0:
+            co.fedavg_aggregate(weights,[1,1])
+        else:
+            co.fedavg_aggregate(weights,[agent1.total_reward,agent2.total_reward])
     else:
         y=[agent1.yk,agent2.yk]
         co.fedADMM_aggregate(weights,y)
@@ -28,6 +26,12 @@ for i in range(50):
     agent1.main_network.set_weights(co.last_weights)
     agent2.main_network.set_weights(co.last_weights)
     agent1.train_local_models()
+    if ROBUST_METHODE=='AE':
+        states=np.array(agent1.buffer)
+        aemodel.train_model(states=states[:,0])
     agent2.train_local_models()
+    if ROBUST_METHODE=='AE':
+        states=np.array(agent2.buffer)
+        aemodel.train_model(states=states[:,0])
     co.save_model(agent1.main_network)
     

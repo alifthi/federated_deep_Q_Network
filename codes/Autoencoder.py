@@ -1,5 +1,6 @@
 from keras import layers as ksl
 import tensorflow as tf
+import numpy as np
 from config import STATE_SIZE, AUTOENCODER_PATH
 import random
 class AutoEncoder:
@@ -42,6 +43,11 @@ class AutoEncoder:
         return model
     def train_model(self,states):
         model=self.compile_model()
-        model.fit(states, states, epochs=20, batch_size=32)
+        # states=np.concatenate(states,axis=0)
+        state=[]
+        for s in states:
+            state.append(s[None,:])
+        state=np.concatenate(state,axis=0)
+        model.fit(state, state, epochs=5, batch_size=32)
         for i in range(2):
-            model.layers[i].save(AUTOENCODER_PATH+'/'+model.layers[i].name)
+            model.layers[i].save(AUTOENCODER_PATH+'/'+model.layers[i].name+'.h5')
