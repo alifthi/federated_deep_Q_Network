@@ -22,7 +22,6 @@ class agent:
         self.num_of_timesteps=NUM_OF_TIMESTEPS
         self.buffer=[]
         self.env=gym.make(ENV,render_mode='rgb_array')
-        # self.action_size=self.env.action_space.n
         self.action_size=self.env.action_space.n
         self.eps=0.6
         self.utils=utils()
@@ -40,6 +39,7 @@ class agent:
     def build_model(self):
         model = Sequential()
         model.add(ksl.Dense(64, activation='gelu',input_shape=self.state_size))         
+        model.add(ksl.Dropout(0.2))
         model.add(ksl.Dense(32, activation='gelu'))
         model.add(ksl.Dense(self.action_size, activation='linear'))
         model.summary()
@@ -155,13 +155,6 @@ class agent:
                         losses=tf.math.reduce_mean(losses)
                         
                 gradients=tape.gradient(losses,self.main_network.weights)
-                # if MODE=='FedProx':
-                #     res = tf.nest.map_structure(lambda a, b: a - b,
-                #                         self.main_network.weights,
-                #                         self.last_aggregation_weights)
-                    # gradients=tf.nest.map_structure(lambda a, b: a + 0.001*b,
-                    #                     gradients,
-                    #                     res)
                 if ROBUST_METHODE=='SAM':
                     epsilon = tf.nest.map_structure(lambda a: 0.1*a/tf.linalg.norm(a),
                                                     gradients)

@@ -1,6 +1,7 @@
 from agents import agent1,agent2
 from cooprator import cooprator
 import numpy as np
+import tensorflow as tf
 from config import MODE, ROBUST_METHODE
 if ROBUST_METHODE=='AE':
     from Autoencoder import AutoEncoder

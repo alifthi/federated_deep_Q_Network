@@ -1,6 +1,7 @@
 ENV='CartPole-v1'
-MODE='FedAvg' # FedProx FedADMM
-ROBUST_METHODE= 'priorized'# 'SAM'
+MODE='FedAvg' # FedProx FedADMM FedAvg
+ROBUST_METHODE= '_' # SAM priorized
+AGREEGATION='weightesAveraging'
 NUMBER_OF_AGENTS=2
 STATE_SIZE=[4]
 DISCOUNT_FACTOR=0.99

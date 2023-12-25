@@ -33,7 +33,8 @@ class cooprator:
                     model2_weights.append(layer_weights/self.number_of_agents)
         self.yk_1=model1_weights
         self.yk_2=model2_weights
-
+    def weightedAveraging(self,agents_weights):
+        pass
     @staticmethod
     def save_model(model):
         model.save(MODEL_PATH+'/model.h5')
