@@ -1,9 +1,11 @@
-from config import NUMBER_OF_AGENTS, MODEL_PATH
+from config import NUMBER_OF_AGENTS, MODEL_PATH, AGREEGATION
 class cooprator:
     def __init__(self) -> None:
         self.is_ready=False
         self.number_of_agents=NUMBER_OF_AGENTS
         self.roh=0.9
+        if AGREEGATION=='weightedAveraging':
+            self.A=[[0.5,0.5],[0.5,0.5]]
     def fedavg_aggregate(self,agents_weights,total_rewards):
         model_weights=[]
         for i in range(len(agents_weights[0])):
@@ -34,7 +36,14 @@ class cooprator:
         self.yk_1=model1_weights
         self.yk_2=model2_weights
     def weightedAveraging(self,agents_weights):
-        pass
+        weights=[]
+        for ag2 in range(self.number_of_agents):
+            model_weights=[]
+            for i in range(len(agents_weights[0])):
+                tmp=[self.A[ag2][ag1]*agents_weights[ag1][i] for ag1 in range(self.number_of_agents)]
+                model_weights.append(sum(tmp))
+            weights.append(model_weights)
+        return weights
     @staticmethod
     def save_model(model):
         model.save(MODEL_PATH+'/model.h5')
