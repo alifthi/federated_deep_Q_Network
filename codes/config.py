@@ -1,6 +1,6 @@
 ENV='CartPole-v1'
-MODE='FedAvg' # FedProx FedADMM FedAvg
-ROBUST_METHODE= '_' # SAM priorized
+MODE='FedProx' # FedProx FedADMM FedAvg
+ROBUST_METHODE= '_' # SAM priorized DDQN
 AGREEGATION='weightedAveraging'
 NUMBER_OF_AGENTS=2
 STATE_SIZE=[4]

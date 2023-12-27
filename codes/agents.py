@@ -99,10 +99,15 @@ class agent:
         value=[]
         i=0
         for state, action, reward, n_state, is_done,_ in batch:
+            val=self.target_network.predict(n_state[None,:],verbose=0)
+            act=np.argmax(val)
             if is_done:
                 Q=reward
             else:
-                Q=reward+self.discount_factor*np.max(self.target_network.predict(n_state[None,:],verbose=0))
+                if ROBUST_METHODE=='DDQN':
+                    Q=reward+self.discount_factor*self.target_network.predict(n_state[None,:],verbose=0)[act]
+                else:
+                    Q=reward+self.discount_factor*np.max(self.target_network.predict(n_state[None,:],verbose=0))
             Q_values=self.main_network.predict(state[None,:],verbose=0)
             Q_values[0][action]=Q
             value.append(Q_values)
