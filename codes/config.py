@@ -3,6 +3,7 @@ MODEL_SELECTION='policy_gradient_method'
 MODE='FedAvg' # FedProx FedADMM FedAvg
 ROBUST_METHODE= '_' # SAM priorized DDQN
 AGREEGATION='weightedAveraging'
+POLICY_UPDATE_RATE=10
 NUMBER_OF_AGENTS=5
 STATE_SIZE=[4]
 DISCOUNT_FACTOR=0.99

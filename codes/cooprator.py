@@ -1,4 +1,4 @@
-from config import NUMBER_OF_AGENTS, MODEL_PATH, AGREEGATION, MODEL_SELECTION
+from config import NUMBER_OF_AGENTS, MODEL_PATH, AGREEGATION, MODEL_SELECTION,POLICY_UPDATE_RATE
 from clientselection import policygradient 
 import numpy as np
 class cooprator:
@@ -7,14 +7,32 @@ class cooprator:
         self.number_of_agents=NUMBER_OF_AGENTS
         self.roh=0.9
         if MODEL_SELECTION=='policy_gradient_method':
+            self.update_counter=0
+            self.reset_experience()
             self.graph={'agent1':['agent1','agent2','agent3','agent4','agent5'],
-                   'agent2':['agent1','agent2','agent3','agent4'],
-                   'agent3':['agent1','agent2','agent3','agent4','agent5'],
-                   'agent4':['agent1','agent2','agent3','agent4'],
-                   'agent5':['agent1','agent3']}
+                        'agent2':['agent1','agent2','agent3'],
+                        'agent3':['agent1','agent2','agent3','agent4','agent5'],
+                        'agent4':['agent1','agent2','agent3','agent4'],
+                        'agent5':['agent1','agent3','agent5']}
             self.agents_policy=[policygradient(numberOfAgents=len(self.graph[key])) for key in self.graph.keys()]
-        if AGREEGATION=='weightedAveraging':
-            self.A=[[0.5,0.5],[0.5,0.5]]
+        # if AGREEGATION=='weightedAveraging':
+        #     self.A=[[0.5,0.5],[0.5,0.5]]
+    def reset_experience(self):
+        self.states={'agent1':[],
+                   'agent2':[],
+                   'agent3':[],
+                   'agent4':[],
+                   'agent5':[]}
+        self.actions={'agent1':[],
+                   'agent2':[],
+                   'agent3':[],
+                   'agent4':[],
+                   'agent5':[]}
+        self.rewards={'agent1':[],
+                   'agent2':[],
+                   'agent3':[],
+                   'agent4':[],
+                   'agent5':[]}
     def fedavg_aggregate(self,agents_weights,total_rewards):
         model_weights=[]
         for i in range(len(agents_weights[0])):
@@ -50,9 +68,17 @@ class cooprator:
             state=[]
             for key in self.graph.keys():
                 s=[]
+                other_rewards=[]
                 for val in self.graph[key]:
+                    if val==key:
+                        agent_reward=states[val][0]
+                    else:
+                        other_rewards.append(states[val][0])
                     s=s+states[val]
                 state.append(s)
+                self.states[key].append(state)
+                reward=agent_reward-sum(other_rewards)/len(other_rewards)
+                self.rewards[key].append(reward)
             self.agent_selection(state)
         for ag2,agent in enumerate(self.graph.keys()):
             model_weights=[]
@@ -60,12 +86,16 @@ class cooprator:
                 tmp=[self.A[ag2][ag1]*agents_weights[ag1][i] for ag1 in range(len(self.graph[agent]))]
                 model_weights.append(sum(tmp))
             weights.append(model_weights)
+        self.update_counter+=1
+        if self.update_counter%POLICY_UPDATE_RATE==0:
+            [agent.train_model() for agent in self.agents_policy]
+            self.reset_experience()
         return weights
     def agent_selection(self,states):
         self.A=[]
         for i,agent in enumerate(self.agents_policy):
             actions,dist=agent.sellect_action(states[i])
-            print(dist)
+            self.actions[list(self.graph)[i]].append(actions)
             selected_prob=np.zeros(self.number_of_agents)
             selected_prob[actions]=dist[actions]
             selected_prob/=selected_prob.sum()
