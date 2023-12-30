@@ -41,4 +41,4 @@ class policygradient:
             grads = tape.gradient(loss, self.model.trainable_variables)
             self.optim.apply_gradients(zip(grads, self.model.trainable_variables))
     def loss(self,policy,action,reward):
-        return -tf.math.log(sum([policy[a] for a in action]))*reward
+        return -(sum([tf.math.log(policy[a]) for a in action])/len(action))*reward
