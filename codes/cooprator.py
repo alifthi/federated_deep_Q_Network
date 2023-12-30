@@ -51,11 +51,9 @@ class cooprator:
             for key in self.graph.keys():
                 s=[]
                 for val in self.graph[key]:
-                    s+=states[val]
+                    s=s+states[val]
                 state.append(s)
-            for ag in self.graph.keys():
-                state.append(np.array([states[ag]]*len(self.graph[ag])))
-            self.agent_selection(states)
+            self.agent_selection(state)
         for ag2,agent in enumerate(self.graph.keys()):
             model_weights=[]
             for i in range(len(agents_weights[0])):
@@ -67,6 +65,7 @@ class cooprator:
         self.A=[]
         for i,agent in enumerate(self.agents_policy):
             actions,dist=agent.sellect_action(states[i])
+            print(dist)
             selected_prob=np.zeros(self.number_of_agents)
             selected_prob[actions]=dist[actions]
             selected_prob/=selected_prob.sum()
