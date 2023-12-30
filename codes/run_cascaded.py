@@ -18,6 +18,7 @@ for i in range(500):
         agent1.main_network.set_weights(aggregation[0])
         agent2.last_aggregation_weights=aggregation[1]
         agent2.main_network.set_weights(aggregation[1])
+        
     else:
         if not MODE=='FedADMM':
             if i ==0:
