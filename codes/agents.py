@@ -126,7 +126,9 @@ class agent:
                                         self.main_network.weights,
                                         self.last_aggregation_weights)
         model_difference=tf.linalg.global_norm(model_difference)**2
-        losses=tf.math.reduce_mean(tf.keras.losses.MSE(yTrue,yPred))+0.001*model_difference
+        mse=tf.math.reduce_mean(tf.keras.losses.MSE(yTrue,yPred))
+        losses=+0.001*model_difference
+        self.losses.append(mse)
         return losses
     def ADMM_loss(self,yTrue,yPred):
         model_difference = tf.nest.map_structure(lambda a, b: a - b,
@@ -138,8 +140,10 @@ class agent:
                                   tf.transpose(tf.reshape(model_difference[i],[1,-1])),1))
         residual=sum(l)
         model_difference=tf.linalg.global_norm(model_difference)**2
-        losses=tf.math.reduce_mean(tf.keras.losses.MSE(yTrue,yPred))+\
-                                    self.roh*model_difference/2+residual
+        mse=tf.keras.losses.MSE(yTrue,yPred)
+        mse=tf.math.reduce_mean(mse)
+        losses=mse+self.roh*model_difference/2+residual
+        self.losses.append(mse)
         return losses[0][0]    
     def train(self,states,values,batch_size,epochs):
         sgd=SGD(0.001)
@@ -156,8 +160,9 @@ class agent:
                     elif MODE=='FedADMM':
                         losses=self.ADMM_loss(yTrue=batch_values,yPred=outs)
                     elif MODE=='FedAvg':
-                        losses=tf.keras.losses.MSE(batch_values,outs)
-                        losses=tf.math.reduce_mean(losses)
+                        mse=tf.keras.losses.MSE(batch_values,outs)
+                        losses=tf.math.reduce_mean(mse)
+                        self.losses.append(losses)
                         
                 gradients=tape.gradient(losses,self.main_network.weights)
                 if ROBUST_METHODE=='SAM':
@@ -175,12 +180,12 @@ class agent:
                         elif MODE=='FedADMM':
                             losses=self.ADMM_loss(yTrue=batch_values,yPred=outs)
                         elif MODE=='FedAvg':
-                            losses=tf.keras.losses.MSE(batch_values,outs)
-                            losses=tf.math.reduce_mean(losses)
+                            mse=tf.keras.losses.MSE(batch_values,outs)
+                            losses=tf.math.reduce_mean(mse)
+                            self.losses.append(losses)
                     gradients=tape.gradient(losses,tmp_model.weights)     
                       
                 sgd.apply_gradients(zip(gradients,self.main_network.weights))
-                self.losses.append(losses)
                 print(f'Mode: {MODE}, loss: {losses.numpy()}')
     def periorizeation(self):
         arr=np.array(self.buffer)
@@ -208,6 +213,8 @@ class agent1(agent):
                 self.main_network.save(MODEL_PATH+'/best/model1.h5')
             self.plot('1')
             print(f'[INFO] 1.{_}th round ended, Total return {self.total_reward}!')
+        return[self.total_reward,sum(self.losses)/len(self.losses)]
+
 class agent2(agent):
     def train_local_models(self):
         for _ in range(NUM_OF_EPISODES):
@@ -218,3 +225,37 @@ class agent2(agent):
                 self.main_network.save(MODEL_PATH+'/best/model2.h5')
             self.plot('2')
             print(f'[INFO] 2.{_}th round ended, Total return {self.total_reward}!')
+        return[self.total_reward,sum(self.losses)/len(self.losses)]
+class agent3(agent):
+    def train_local_models(self):
+        for _ in range(NUM_OF_EPISODES):
+            self.total_reward=self.start_episode()
+            self.rewards.append(self.total_reward)
+            self.main_network.save('../model/model3.h5')
+            if self.total_reward>= max(self.rewards):
+                self.main_network.save(MODEL_PATH+'/best/model3.h5')
+            self.plot('3')
+            print(f'[INFO] 3.{_}th round ended, Total return {self.total_reward}!')
+        return[self.total_reward,sum(self.losses)/len(self.losses)]
+
+class agent4(agent):
+    def train_local_models(self):
+        for _ in range(NUM_OF_EPISODES):
+            self.total_reward=self.start_episode()
+            self.rewards.append(self.total_reward)
+            self.main_network.save('../model/model4.h5')
+            if self.total_reward>= max(self.rewards):
+                self.main_network.save(MODEL_PATH+'/best/model4.h5')
+            self.plot('4')
+            print(f'[INFO] 4.{_}th round ended, Total return {self.total_reward}!')
+class agent5(agent):
+    def train_local_models(self):
+        for _ in range(NUM_OF_EPISODES):
+            self.total_reward=self.start_episode()
+            self.rewards.append(self.total_reward)
+            self.main_network.save('../model/model5.h5')
+            if self.total_reward>= max(self.rewards):
+                self.main_network.save(MODEL_PATH+'/best/model5.h5')
+            self.plot('5')
+            print(f'[INFO] 5.{_}th round ended, Total return {self.total_reward}!')
+        return[self.total_reward,sum(self.losses)/len(self.losses)]

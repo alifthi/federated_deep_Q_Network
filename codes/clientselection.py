@@ -1,13 +1,13 @@
 import os
 os.environ["TF_CPP_MIN_LOG_LEVEL"]='3'
 import numpy as np
-from keras.optimizers import SGD
+from keras.optimizers import Adam
 import tensorflow as tf
 from tensorflow.keras.models import Sequential
 from tensorflow.keras import layers as ksl 
-from keras.optimzers import Adam
 class policygradient:
     def __init__(self,numberOfAgents=3) -> None:
+        self.num_of_connection=numberOfAgents
         self.state_size=[numberOfAgents*2]
         self.discount_factor=0.95
         self.action_size=numberOfAgents
@@ -20,12 +20,13 @@ class policygradient:
         model.add(ksl.Dense(32, activation='gelu'))
         model.add(ksl.Dense(self.action_size, activation='softmax'))
         model.summary()
-        model.compile(loss='mae',optimizer=SGD(0.01),metrics=['mae','mse'])
         return model
-    def sellect_action_dist(self,polisy):
+    def sellect_action_by_distribution(self,polisy):
         dist=tf.nn.softmax(polisy).numpy()[0]
         dist=dist/sum(list(dist))
-        return np.random.choice(np.arange(self.action_size),p=dist)
+        return [np.random.choice(np.arange(self.action_size),int(self.num_of_connection/2),p=dist),dist]
+    def sellect_action(self,states):
+        return self.sellect_action_by_distribution(self.model(np.array([states])))
     def train_model(self, states, rewards, actions):
         sum_reward = 0
         discnt_rewards = []

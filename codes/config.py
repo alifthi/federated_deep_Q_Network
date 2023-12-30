@@ -1,8 +1,9 @@
 ENV='CartPole-v1'
-MODE='FedProx' # FedProx FedADMM FedAvg
+MODEL_SELECTION='policy_gradient_method'
+MODE='FedAvg' # FedProx FedADMM FedAvg
 ROBUST_METHODE= '_' # SAM priorized DDQN
 AGREEGATION='weightedAveraging'
-NUMBER_OF_AGENTS=2
+NUMBER_OF_AGENTS=5
 STATE_SIZE=[4]
 DISCOUNT_FACTOR=0.99
 BATCH_SIZE=8
