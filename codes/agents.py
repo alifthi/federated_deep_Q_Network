@@ -1,7 +1,7 @@
 import os
 os.environ["TF_CPP_MIN_LOG_LEVEL"]='3'
 import numpy as np
-from keras.optimizers import SGD
+from keras.optimizers import SGD,Adam
 import tensorflow as tf
 from tensorflow.keras.models import Sequential
 from tensorflow.keras import layers as ksl 
@@ -9,6 +9,7 @@ from utils import utils
 import gym 
 import random
 from matplotlib import pyplot as plt
+from keras.losses import CategoricalCrossentropy
 from config import ENV, STATE_SIZE, BATCH_SIZE,\
                     TARGET_NETWORK_UPDATE_RATE,\
                     DISCOUNT_FACTOR, NUM_OF_EPISODES,\
@@ -31,6 +32,8 @@ class agent:
         self.target_network=self.build_model()
         self.prox_factor=0.05
         self.last_aggregation_weights=None
+        self.optim=Adam(0.01)
+        self.centropy=CategoricalCrossentropy()
         self.losses=[]
         self.rewards=[]
         if MODE=='FedADMM':
@@ -52,7 +55,7 @@ class agent:
         return model
     def update_buffer(self, state, action, reward, n_state, is_done,TD=None):
         if not isinstance(type(TD),type(None)):
-            self.buffer.append([state, action, reward, n_state, is_done,TD])
+            self.buffer.append([state, action, reward, n_state, is_done])
             return
         self.buffer.append([state, action, reward, n_state, is_done,TD])
     def sellect_action(self,Q_value):
@@ -60,10 +63,59 @@ class agent:
         if np.random.uniform(0,1)>self.eps:
             return np.random.randint(self.action_size)
         return np.argmax(Q_value[0])
-    def sellect_action_dist(self,Q_value):
-        dist=tf.nn.softmax(Q_value).numpy()[0]
-        dist=dist/sum(list(dist))
-        return np.random.choice(np.arange(self.action_size),p=dist)
+    def sellect_action_dist(self,prob):
+        prob=tf.nn.softmax(prob).numpy()
+        prob=prob/sum(list(prob))
+        return np.random.choice(np.arange(self.action_size),p=prob)
+    def policy_gradient_method(self):
+        Return=0
+        state,_=self.env.reset()
+        self.buffer=[]
+        for i in range(self.num_of_timesteps):
+            self.total_updates+=1
+            prob=self.main_network.predict(state[None,:],verbose=0)[0]
+            action=self.sellect_action_dist(prob)
+            n_state, reward, done,_,_=self.env.step(action)
+            self.update_buffer(action=action, reward=reward,
+                               n_state=n_state, state=state,
+                               is_done=done)
+            state=n_state
+            Return+=reward
+            if done:
+                break
+        self.discount_rewards()
+        self.train_policy_gradient()
+        return Return
+    def train_policy_gradient(self):
+        rewards=[]
+        actions=[]
+        states=[]
+        for state, action, reward, _, _ in self.buffer:
+            act=np.zeros(self.action_size)
+            act[action]=1
+            actions.append(act)
+            rewards.append(reward)
+            states.append(state)
+        actions=np.array(actions)
+        reward=np.array(reward)
+        state=np.array(states)
+        with tf.GradientTape() as tape:
+            tape.watch(self.main_network.trainable_variables)
+            policy = self.main_network(state, training=True)
+            loss=self.policy_loss(policy,actions,rewards)
+            
+        self.losses.append(loss)
+
+        print(loss)
+        grads = tape.gradient(loss, self.main_network.trainable_variables)
+        self.optim.apply_gradients(zip(grads, self.main_network.trainable_variables))
+    def policy_loss(self,policy,actions,reward):
+        # losses=self.centropy(policy,actions)*reward 
+        # losses=tf.math.log(losses)
+        # loss=tf.math.reduce_mean(losses)
+        loss=tf.compat.v1.nn.softmax_cross_entropy_with_logits_v2(logits = policy, labels = actions)
+        loss=tf.math.reduce_mean(loss*reward)
+        return loss               
     def start_episode(self):
         return_=0
         state,_=self.env.reset()
@@ -88,6 +140,19 @@ class agent:
             if done:
                 break
         return return_
+    def discount_rewards(self):
+        reward_to_go = 0.0
+        for i in reversed(range(len(self.buffer))):
+            reward_to_go = reward_to_go * self.discount_factor + self.buffer[i][2]
+            self.buffer[i][2] = reward_to_go
+        tmp=np.array(self.buffer)
+        tmp=tmp[:,2]
+        tmp -= np.mean(tmp)
+        tmp /= np.std(tmp)
+        for i,r in enumerate(tmp):
+            self.buffer[i][2]=r
+
+
     def train_main_models(self):
         if not ROBUST_METHODE=='priorized':
             batch=random.sample(self.buffer,self.batch_size)
@@ -203,58 +268,63 @@ class agent:
 class agent1(agent):
     def train_local_models(self):
         for _ in range(NUM_OF_EPISODES):
-            self.total_reward=self.start_episode()
+            # self.total_rewards=self.start_episode()
+            self.total_rewards=self.policy_gradient_method()
             self.main_network.save('../model/model1.h5')
-            self.rewards.append(self.total_reward)
-            if self.total_reward>= max(self.rewards):
+            self.rewards.append(self.total_rewards)
+            if self.total_rewards>= max(self.rewards):
                 self.main_network.save(MODEL_PATH+'/best/model1.h5')
             self.plot('1')
-            print(f'[INFO] 1.{_}th round ended, Total return {self.total_reward}!')
-        return[self.total_reward,sum(self.losses)/len(self.losses)]
+            print(f'[INFO] 1.{_}th round ended, Total return {self.total_rewards}!')
+        return[self.total_rewards,sum(self.losses)/len(self.losses)]
 
 class agent2(agent):
     def train_local_models(self):
         for _ in range(NUM_OF_EPISODES):
-            self.total_reward=self.start_episode()
-            self.rewards.append(self.total_reward)
+            # self.total_rewards=self.start_episode()
+            self.total_rewards=self.policy_gradient_method()
+            self.rewards.append(self.total_rewards)
             self.main_network.save('../model/model2.h5')
-            if self.total_reward>= max(self.rewards):
+            if self.total_rewards>= max(self.rewards):
                 self.main_network.save(MODEL_PATH+'/best/model2.h5')
             self.plot('2')
-            print(f'[INFO] 2.{_}th round ended, Total return {self.total_reward}!')
-        return[self.total_reward,sum(self.losses)/len(self.losses)]
+            print(f'[INFO] 2.{_}th round ended, Total return {self.total_rewards}!')
+        return[self.total_rewards,sum(self.losses)/len(self.losses)]
 class agent3(agent):
     def train_local_models(self):
         for _ in range(NUM_OF_EPISODES):
-            self.total_reward=self.start_episode()
-            self.rewards.append(self.total_reward)
+            # self.total_rewards=self.start_episode()
+            self.total_rewards=self.policy_gradient_method()
+            self.rewards.append(self.total_rewards)
             self.main_network.save('../model/model3.h5')
-            if self.total_reward>= max(self.rewards):
+            if self.total_rewards>= max(self.rewards):
                 self.main_network.save(MODEL_PATH+'/best/model3.h5')
             self.plot('3')
-            print(f'[INFO] 3.{_}th round ended, Total return {self.total_reward}!')
-        return[self.total_reward,sum(self.losses)/len(self.losses)]
+            print(f'[INFO] 3.{_}th round ended, Total return {self.total_rewards}!')
+        return[self.total_rewards,sum(self.losses)/len(self.losses)]
 
 class agent4(agent):
     def train_local_models(self):
         for _ in range(NUM_OF_EPISODES):
-            self.total_reward=self.start_episode()
-            self.rewards.append(self.total_reward)
+            # self.total_rewards=self.start_episode()
+            self.total_rewards=self.policy_gradient_method()
+            self.rewards.append(self.total_rewards)
             self.main_network.save('../model/model4.h5')
-            if self.total_reward>= max(self.rewards):
+            if self.total_rewards>= max(self.rewards):
                 self.main_network.save(MODEL_PATH+'/best/model4.h5')
             self.plot('4')
-        print(f'[INFO] 4.{_}th round ended, Total return {self.total_reward}!')
-        return[self.total_reward,sum(self.losses)/len(self.losses)]
+        print(f'[INFO] 4.{_}th round ended, Total return {self.total_rewards}!')
+        return[self.total_rewards,sum(self.losses)/len(self.losses)]
 
 class agent5(agent):
     def train_local_models(self):
         for _ in range(NUM_OF_EPISODES):
-            self.total_reward=self.start_episode()
-            self.rewards.append(self.total_reward)
+            # self.total_rewards=self.start_episode()
+            self.total_rewards=self.policy_gradient_method()
+            self.rewards.append(self.total_rewards)
             self.main_network.save('../model/model5.h5')
-            if self.total_reward>= max(self.rewards):
+            if self.total_rewards>= max(self.rewards):
                 self.main_network.save(MODEL_PATH+'/best/model5.h5')
             self.plot('5')
-            print(f'[INFO] 5.{_}th round ended, Total return {self.total_reward}!')
-        return[self.total_reward,sum(self.losses)/len(self.losses)]
+            print(f'[INFO] 5.{_}th round ended, Total return {self.total_rewards}!')
+        return[self.total_rewards,sum(self.losses)/len(self.losses)]

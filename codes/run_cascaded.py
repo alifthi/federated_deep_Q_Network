@@ -21,6 +21,7 @@ for i in range(500):
         states.update({key:agents[key].train_local_models()})
     weights=[agents[ag].main_network.weights for ag in agents.keys()]
     if AGREEGATION=='weightedAveraging':
+        pass
         aggregation=co.weightedAveraging(weights,states=states)
         for i,ag in enumerate(agents.keys()):
             agents[ag].main_network.set_weights(aggregation[i])

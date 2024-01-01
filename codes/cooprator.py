@@ -63,7 +63,6 @@ class cooprator:
         self.yk_1=model1_weights
         self.yk_2=model2_weights
     def weightedAveraging(self,agents_weights,states=None):
-        weights=[]
         if MODEL_SELECTION=='policy_gradient_method':
             state=[]
             for key in self.graph.keys():
@@ -76,20 +75,24 @@ class cooprator:
                         other_rewards.append(states[val][0])
                     s=s+states[val]
                 state.append(s)
-                self.states[key].append(state)
+                self.states[key].append(s)
                 reward=agent_reward-sum(other_rewards)/len(other_rewards)
                 self.rewards[key].append(reward)
             self.agent_selection(state)
+        weights=[]
         for ag2,agent in enumerate(self.graph.keys()):
             model_weights=[]
             for i in range(len(agents_weights[0])):
                 tmp=[self.A[ag2][ag1]*agents_weights[ag1][i] for ag1 in range(len(self.graph[agent]))]
                 model_weights.append(sum(tmp))
             weights.append(model_weights)
-        self.update_counter+=1
         if self.update_counter%POLICY_UPDATE_RATE==0:
-            [agent.train_model() for agent in self.agents_policy]
+            for i,agent in enumerate(self.graph.keys()):
+                self.agents_policy[i].train_model(actions=self.actions[agent],
+                                                      states=self.states[agent],
+                                                      rewards=self.rewards[agent])
             self.reset_experience()
+        self.update_counter+=1
         return weights
     def agent_selection(self,states):
         self.A=[]
@@ -97,7 +100,8 @@ class cooprator:
             actions,dist=agent.sellect_action(states[i])
             self.actions[list(self.graph)[i]].append(actions)
             selected_prob=np.zeros(self.number_of_agents)
-            selected_prob[actions]=dist[actions]
+            for i,act in enumerate(actions):
+                selected_prob[act]=dist[i][act]
             selected_prob/=selected_prob.sum()
             self.A.append(selected_prob)
         
