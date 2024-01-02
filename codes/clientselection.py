@@ -19,15 +19,15 @@ class policygradient:
         self.centropy=CategoricalCrossentropy()
     def build_model(self):
         inp = ksl.Input(self.state_size)
-        x=ksl.Dense(64, activation='gelu')(inp)         
-        x=ksl.Dense(32, activation='gelu')(x)
+        x=ksl.Dense(32, activation='gelu')(inp)         
+        # x=ksl.Dense(32, activation='gelu')(x)
         outs=[]
         for _ in range(int(self.num_of_connection/2)):
             outs.append(ksl.Dense(self.action_size, activation='linear')(x))
         model=tf.keras.Model(inp,outputs=outs)
         return model
     def sellect_action_by_distribution(self,polisy):
-        dist=tf.nn.softmax(polisy).numpy()
+        dist=tf.nn.softmax(polisy/10).numpy()
         dist=dist.reshape([-1])
         dist=dist/dist.sum()
         return [np.random.choice(np.arange(self.action_size),p=dist,replace=False),dist]
@@ -48,14 +48,12 @@ class policygradient:
             sum_reward = r + self.discount_factor*sum_reward
             discnt_rewards.append(sum_reward)
         discnt_rewards.reverse()  
-        # discnt_rewards=np.array(discnt_rewards)
-        # discnt_rewards -= np.mean(discnt_rewards)
-        # discnt_rewards /= np.std(discnt_rewards)
+        discnt_rewards=np.array(discnt_rewards)
+        discnt_rewards -= np.mean(discnt_rewards)
+        discnt_rewards /= np.std(discnt_rewards)
         action=[]
         for a in actions:
             act=tf.keras.utils.to_categorical(a,num_classes=self.action_size)
-            # act=np.zeros(self.action_size)
-            # act[a]=1
             action.append(act)
         actions=np.array(action)
         states=np.array(states)
@@ -68,7 +66,6 @@ class policygradient:
         grads = tape.gradient(loss, self.model.trainable_variables)
         self.optim.apply_gradients(zip(grads, self.model.trainable_variables))
     def loss(self,policy,action,reward):
-        # dist=tfp.distributions.Categorical(probs=policy,dtype=tf.float32)
         loss=tf.compat.v1.nn.softmax_cross_entropy_with_logits_v2(logits = policy, labels = action)
         loss=tf.math.reduce_mean(loss*reward)
         return loss
