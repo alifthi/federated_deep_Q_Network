@@ -14,7 +14,7 @@ class cooprator:
                         'agent2':['agent1','agent2','agent3','agent4'],
                         'agent3':['agent1','agent2','agent3','agent4','agent5'],
                         'agent4':['agent1','agent2','agent3','agent4'],
-                        'agent5':['agent1','agent3','agent5']}
+                        'agent5':['agent1','agent3','agent4','agent5']}
             self.agents_policy=[policygradient(numberOfAgents=len(self.graph[key])) for key in self.graph.keys()]
             self.clients={'agent1':pd.DataFrame(columns=['iteration','Agent1','Agent2','Agent3','Agent4','Agent5']),
                         'agent2':pd.DataFrame(columns=['iteration','Agent1','Agent2','Agent3','Agent4','Agent5']),
@@ -24,6 +24,11 @@ class cooprator:
             self.iteration=0
 
     def reset_experience(self):
+        self.n_states={'agent1':[],
+                   'agent2':[],
+                   'agent3':[],
+                   'agent4':[],
+                   'agent5':[]}
         self.states={'agent1':[],
                    'agent2':[],
                    'agent3':[],
@@ -83,6 +88,8 @@ class cooprator:
                         s=s+states[val]
                     state.append(s)
                     self.states[key].append(s)
+                    if self.update_counter>1:
+                        self.n_states[key].append(s)
                     reward=agent_reward # -sum(other_rewards)/len(other_rewards)
                     self.rewards[key].append(reward)
                 self.agent_selection(state)
@@ -95,12 +102,13 @@ class cooprator:
                 tmp=[self.A[ag2][ag1]*agents_weights[ag1][i] for ag1 in range(len(self.graph[agent]))]
                 model_weights.append(sum(tmp))
             weights.append(model_weights)
-        if self.update_counter%5==0 and self.update_counter>0:
+        if self.update_counter%1==0 and self.update_counter>4:
             for i,agent in enumerate(self.graph.keys()):
-                self.agents_policy[i].train_model(actions=self.actions[agent],
-                                                      states=self.states[agent],
-                                                      rewards=self.rewards[agent])
-            self.reset_experience()
+                self.agents_policy[i].train_model(actions=self.actions[agent][:-1],
+                                                      states=self.states[agent][:-1],
+                                                      rewards=self.rewards[agent][:-1],
+                                                      n_states=self.n_states[agent])
+            # self.reset_experience()
         self.update_counter+=1
         return weights
     def agent_selection(self,states):
@@ -110,7 +118,7 @@ class cooprator:
             actions,dist=agent.sellect_action(states[i])
             self.actions[list(self.graph)[i]].append(actions)
             selected_prob=np.zeros(self.number_of_agents)
-            selected_prob[i]=1
+            # selected_prob[i]=1
             for i,act in enumerate(actions):
                 selected_prob[act]=dist[i][act]
             selected_prob/=selected_prob.sum()

@@ -10,7 +10,7 @@ from config import ENV, MODEL_PATH
 
 env=gym.make(ENV,render_mode='rgb_array')
 utils=utils()
-model=tf.keras.models.load_model(MODEL_PATH+'/best/model5.h5',
+model=tf.keras.models.load_model(MODEL_PATH+'/best/model1.h5',
                                  custom_objects={'FedProx_loss':'nothing'})
 agent=agent()
 

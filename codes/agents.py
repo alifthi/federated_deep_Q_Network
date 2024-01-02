@@ -276,8 +276,8 @@ class agent1(agent):
                 self.main_network.save(MODEL_PATH+'/best/model1.h5')
             self.plot('1')
             print(f'[INFO] 1.{_}th round ended, Total return {self.total_rewards}!')
+        return[self.total_rewards]
         return[self.total_rewards,sum(self.losses)/len(self.losses)]
-
 class agent2(agent):
     def train_local_models(self):
         for _ in range(NUM_OF_EPISODES):
@@ -289,6 +289,7 @@ class agent2(agent):
                 self.main_network.save(MODEL_PATH+'/best/model2.h5')
             self.plot('2')
             print(f'[INFO] 2.{_}th round ended, Total return {self.total_rewards}!')
+        return[self.total_rewards]
         return[self.total_rewards,sum(self.losses)/len(self.losses)]
 class agent3(agent):
     def train_local_models(self):
@@ -301,6 +302,7 @@ class agent3(agent):
                 self.main_network.save(MODEL_PATH+'/best/model3.h5')
             self.plot('3')
             print(f'[INFO] 3.{_}th round ended, Total return {self.total_rewards}!')
+        return[self.total_rewards]
         return[self.total_rewards,sum(self.losses)/len(self.losses)]
 
 class agent4(agent):
@@ -314,6 +316,7 @@ class agent4(agent):
                 self.main_network.save(MODEL_PATH+'/best/model4.h5')
             self.plot('4')
         print(f'[INFO] 4.{_}th round ended, Total return {self.total_rewards}!')
+        return[self.total_rewards]
         return[self.total_rewards,sum(self.losses)/len(self.losses)]
 
 class agent5(agent):
@@ -327,4 +330,5 @@ class agent5(agent):
                 self.main_network.save(MODEL_PATH+'/best/model5.h5')
             self.plot('5')
             print(f'[INFO] 5.{_}th round ended, Total return {self.total_rewards}!')
+        return[self.total_rewards]
         return[self.total_rewards,sum(self.losses)/len(self.losses)]

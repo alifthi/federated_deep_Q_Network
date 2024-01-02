@@ -10,12 +10,14 @@ from keras.losses import CategoricalCrossentropy
 class policygradient:
     def __init__(self,numberOfAgents=3) -> None:
         self.num_of_connection=numberOfAgents
-        self.state_size=[numberOfAgents*2]
+        self.state_size=[numberOfAgents*1]
         self.discount_factor=0.95
         self.action_size=numberOfAgents
         self.total_updates=1
         self.model=self.build_model()
+        self.Q_network=self.build_model()
         self.optim=Adam(0.01)
+        self.optim_phi=Adam(0.01)
         self.centropy=CategoricalCrossentropy()
     def build_model(self):
         inp = ksl.Input(self.state_size)
@@ -40,7 +42,7 @@ class policygradient:
             selected_actions.append(action)
             distribution.append(dist)
         return selected_actions,distribution
-    def train_model(self, states, rewards, actions):
+    def train_model(self, states, rewards, actions,n_states):
         sum_reward = 0
         discnt_rewards = []
         rewards.reverse()
@@ -55,17 +57,36 @@ class policygradient:
         for a in actions:
             act=tf.keras.utils.to_categorical(a,num_classes=self.action_size)
             action.append(act)
-        actions=np.array(action)
+        action=np.array(action)
+        actions=np.array(actions)
         states=np.array(states)
+        n_states=np.array(n_states)
         losses=[]
+        with tf.GradientTape() as tape_phi:
+            tape_phi.watch(self.Q_network.trainable_variables)
+            Q=self.Q_network(states, training=True)
+            Q_n_state=self.Q_network(n_states,training=True)
+            td=self.clac_td(Q,Q_n_state,rewards,actions)
+            phi_loss=tf.math.reduce_mean(-td)
         with tf.GradientTape() as tape:
+            tape.watch(self.model.trainable_variables)
             policy = self.model(np.array(states), training=True)
-            losses=self.loss(policy, actions, discnt_rewards)
+            losses=self.loss(policy, action, td)
             loss=tf.math.reduce_mean(losses)
         print('Loss: ',loss)
         grads = tape.gradient(loss, self.model.trainable_variables)
+        phi_grad=tape_phi.gradient(phi_loss,self.Q_network.trainable_variables)
         self.optim.apply_gradients(zip(grads, self.model.trainable_variables))
-    def loss(self,policy,action,reward):
+        self.optim_phi.apply_gradients(zip(phi_grad,self.Q_network.trainable_variables))
+    def loss(self,policy,action,td):
         loss=tf.compat.v1.nn.softmax_cross_entropy_with_logits_v2(logits = policy, labels = action)
-        loss=tf.math.reduce_mean(loss*reward)
+        loss=tf.math.reduce_mean(loss*td)
         return loss
+    def clac_td(self,Q_state,Q_n_state,reward,action):
+        td=[]
+        for act,q_s,q_n_s in zip(action.T,Q_state,Q_n_state):
+            for a,q,q_n in zip(act,q_s,q_n_s):
+                td.append(reward+ self.discount_factor*max(q_n)-q[a])
+        
+        td=tf.math.reduce_mean(td)
+        return td 
