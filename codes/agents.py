@@ -42,7 +42,7 @@ class agent:
     def build_model(self):
         model = Sequential()
         model.add(ksl.Dense(64, activation='gelu',input_shape=self.state_size))         
-        model.add(ksl.Dropout(0.2))
+        # model.add(ksl.Dropout(0.2))
         model.add(ksl.Dense(32, activation='gelu'))
         model.add(ksl.Dense(self.action_size, activation='linear'))
         model.summary()
@@ -64,24 +64,30 @@ class agent:
             return np.random.randint(self.action_size)
         return np.argmax(Q_value[0])
     def sellect_action_dist(self,prob):
+
         prob=tf.nn.softmax(prob).numpy()
         prob=prob/sum(list(prob))
         return np.random.choice(np.arange(self.action_size),p=prob)
-    def policy_gradient_method(self):
+    def policy_gradient_method(self,noise=False):
         Return=0
         state,_=self.env.reset()
         self.buffer=[]
         for i in range(self.num_of_timesteps):
             self.total_updates+=1
             prob=self.main_network.predict(state[None,:],verbose=0)[0]
-            action=self.sellect_action_dist(prob)
+            if noise:
+                # action=np.random.choice(np.arange(self.action_size))
+                action=0
+            else:
+                action=self.sellect_action_dist(prob)
+                
             n_state, reward, done,_,_=self.env.step(action)
             self.update_buffer(action=action, reward=reward,
                                n_state=n_state, state=state,
                                is_done=done)
             state=n_state
             Return+=reward
-            if done:
+            if done or Return==2000:
                 break
         self.discount_rewards()
         self.train_policy_gradient()
@@ -269,7 +275,7 @@ class agent1(agent):
     def train_local_models(self):
         for _ in range(NUM_OF_EPISODES):
             # self.total_rewards=self.start_episode()
-            self.total_rewards=self.policy_gradient_method()
+            self.total_rewards=self.policy_gradient_method(noise=True)
             self.main_network.save('../model/model1.h5')
             self.rewards.append(self.total_rewards)
             if self.total_rewards>= max(self.rewards):

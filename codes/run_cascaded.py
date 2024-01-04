@@ -15,7 +15,12 @@ for i in range(500):
     print('Iteration....',i)
     states={}
     for key in agents.keys():
-        states.update({key:agents[key].train_local_models()})
+        tmp_st=[0,0]
+        for _ in range(20):
+            st=agents[key].train_local_models()
+            tmp_st[0]+=st[0]
+            # tmp_st[1]+=st[1]
+        states.update({key:tmp_st})
     weights=[agents[ag].main_network.weights for ag in agents.keys()]
     if AGREEGATION=='weightedAveraging':
         aggregation=co.weightedAveraging(weights,states=states)

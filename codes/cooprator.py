@@ -12,8 +12,8 @@ class cooprator:
             self.reset_experience()
             self.graph={'agent1':['agent1','agent2','agent3','agent4','agent5'],
                         'agent2':['agent1','agent2','agent3','agent4'],
-                        'agent3':['agent1','agent2','agent3','agent4','agent5'],
-                        'agent4':['agent1','agent2','agent3','agent4'],
+                        'agent3':['agent2','agent3','agent4','agent5'],
+                        'agent4':['agent2','agent3','agent4','agent5'],
                         'agent5':['agent1','agent3','agent4','agent5']}
             self.agents_policy=[policygradient(numberOfAgents=len(self.graph[key])) for key in self.graph.keys()]
             self.clients={'agent1':pd.DataFrame(columns=['iteration','Agent1','Agent2','Agent3','Agent4','Agent5']),
@@ -90,8 +90,8 @@ class cooprator:
                     self.states[key].append(s)
                     if self.update_counter>1:
                         self.n_states[key].append(s)
-                    reward=agent_reward # -sum(other_rewards)/len(other_rewards)
-                    self.rewards[key].append(reward)
+                        reward=agent_reward  # - np.mean(other_rewards)
+                        self.rewards[key].append(reward)
                 self.agent_selection(state)
             else:
                 self.A=np.eye(len(self.graph))
@@ -102,33 +102,36 @@ class cooprator:
                 tmp=[self.A[ag2][ag1]*agents_weights[ag1][i] for ag1 in range(len(self.graph[agent]))]
                 model_weights.append(sum(tmp))
             weights.append(model_weights)
-        if self.update_counter%1==0 and self.update_counter>4:
+        if self.update_counter%1==0 and self.update_counter>1:
             for i,agent in enumerate(self.graph.keys()):
-                self.agents_policy[i].train_model(actions=self.actions[agent][:-1],
-                                                      states=self.states[agent][:-1],
-                                                      rewards=self.rewards[agent][:-1],
-                                                      n_states=self.n_states[agent])
+                self.agents_policy[i].train_model(actions=self.actions[agent][-21:-1],
+                                                      states=self.states[agent][-21:-1],
+                                                      rewards=self.rewards[agent][-20:],
+                                                      n_states=self.n_states[agent][-20:])
             # self.reset_experience()
         self.update_counter+=1
         return weights
     def agent_selection(self,states):
         self.A=[]
         for i,agent in enumerate(self.agents_policy):
-            
             actions,dist=agent.sellect_action(states[i])
             self.actions[list(self.graph)[i]].append(actions)
             selected_prob=np.zeros(self.number_of_agents)
-            # selected_prob[i]=1
-            for i,act in enumerate(actions):
-                selected_prob[act]=dist[i][act]
+            selected_prob[i]=1
+            graph_nodes=list(self.graph)
+            for j,act in enumerate(actions):
+                a=int(self.graph[graph_nodes[i]][act][-1])-1
+                selected_prob[a]=dist[j][act]
             selected_prob/=selected_prob.sum()
+            if i==-1:
+                selected_prob=np.zeros(self.number_of_agents)
+                selected_prob[i]=1
             self.A.append(selected_prob)
         for i,agent in enumerate(self.graph.keys()):
             self.clients[agent].loc[len(self.clients[agent])]=[self.iteration]+list(self.A[i])
-            if self.iteration%10==0:
+            if self.iteration%1==0:
                 self.clients[agent].to_csv('../connections_status/'+agent+'.csv',index=False)
         self.iteration+=1
-        
     @staticmethod
     def save_model(model):
         model.save(MODEL_PATH+'/model.h5')

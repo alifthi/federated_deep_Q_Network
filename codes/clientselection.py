@@ -10,8 +10,8 @@ from keras.losses import CategoricalCrossentropy
 class policygradient:
     def __init__(self,numberOfAgents=3) -> None:
         self.num_of_connection=numberOfAgents
-        self.state_size=[numberOfAgents*1]
-        self.discount_factor=0.95
+        self.state_size=[numberOfAgents*2]
+        self.discount_factor=0.99
         self.action_size=numberOfAgents
         self.total_updates=1
         self.model=self.build_model()
@@ -21,15 +21,16 @@ class policygradient:
         self.centropy=CategoricalCrossentropy()
     def build_model(self):
         inp = ksl.Input(self.state_size)
-        x=ksl.Dense(32, activation='gelu')(inp)         
-        # x=ksl.Dense(32, activation='gelu')(x)
+        x=ksl.Dense(32, activation='gelu')(inp)     
+        # x = ksl.Dropout(0.5)(x)    
         outs=[]
         for _ in range(int(self.num_of_connection/2)):
+            x=ksl.Dense(64, activation='gelu')(x)
             outs.append(ksl.Dense(self.action_size, activation='linear')(x))
         model=tf.keras.Model(inp,outputs=outs)
         return model
     def sellect_action_by_distribution(self,polisy):
-        dist=tf.nn.softmax(polisy/10).numpy()
+        dist=tf.nn.softmax(polisy/30).numpy()
         dist=dist.reshape([-1])
         dist=dist/dist.sum()
         return [np.random.choice(np.arange(self.action_size),p=dist,replace=False),dist]
@@ -80,7 +81,7 @@ class policygradient:
         self.optim_phi.apply_gradients(zip(phi_grad,self.Q_network.trainable_variables))
     def loss(self,policy,action,td):
         loss=tf.compat.v1.nn.softmax_cross_entropy_with_logits_v2(logits = policy, labels = action)
-        loss=tf.math.reduce_mean(loss*td)
+        loss=tf.math.reduce_mean(loss*td.numpy())
         return loss
     def clac_td(self,Q_state,Q_n_state,reward,action):
         td=[]
