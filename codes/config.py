@@ -3,6 +3,7 @@ MODEL_SELECTION='policy_gradient_method'
 MODE='FedAvg' # FedProx FedADMM FedAvg
 ROBUST_METHODE= '_' # SAM priorized DDQN
 AGREEGATION= 'weightedAveraging'# 'weightedAveraging'
+ATTACK='model_targeted_poisoning' # 'label_flipping','model_targeted_poisoning'
 POLICY_UPDATE_RATE=5
 NUMBER_OF_AGENTS=5
 STATE_SIZE=[4]

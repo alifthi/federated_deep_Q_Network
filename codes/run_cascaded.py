@@ -6,7 +6,7 @@ if ROBUST_METHODE=='AE':
     from Autoencoder import AutoEncoder
     aemodel=AutoEncoder()    
 co=cooprator()
-agents={'agent1':agent1(),
+agents={'agent1':agent1(is_attacker=True),
         'agent2':agent2(),
         'agent3':agent3(),
         'agent4':agent4(),
@@ -16,10 +16,17 @@ for i in range(500):
     states={}
     for key in agents.keys():
         tmp_st=[0,0]
-        for _ in range(20):
+        solved_counter=0
+        for i in range(50):
             st=agents[key].train_local_models()
+            if st[0]==500:
+                solved_counter+=1
+            else:
+                solved_counter=0
+            if solved_counter==4:
+                tmp_st[0]+=500*(50-i)
+                break
             tmp_st[0]+=st[0]
-            # tmp_st[1]+=st[1]
         states.update({key:tmp_st})
     weights=[agents[ag].main_network.weights for ag in agents.keys()]
     if AGREEGATION=='weightedAveraging':

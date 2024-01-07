@@ -14,9 +14,9 @@ from config import ENV, STATE_SIZE, BATCH_SIZE,\
                     TARGET_NETWORK_UPDATE_RATE,\
                     DISCOUNT_FACTOR, NUM_OF_EPISODES,\
                      NUM_OF_TIMESTEPS,MODE,ROBUST_METHODE,\
-                     FIGURE_PATH,MODEL_PATH
+                     FIGURE_PATH,MODEL_PATH, ATTACK
 class agent:
-    def __init__(self) -> None:
+    def __init__(self,is_attacker=False) -> None:
         self.state_size=STATE_SIZE
         self.batch_size=BATCH_SIZE
         self.discount_factor=DISCOUNT_FACTOR
@@ -36,12 +36,16 @@ class agent:
         self.centropy=CategoricalCrossentropy()
         self.losses=[]
         self.rewards=[]
+        self.is_attacker=is_attacker
+        if ATTACK=='model_targeted_poisoning'and self.is_attacker:
+            self.attacker_target=self.build_model()
+            self.attacker_optimizer=SGD(0.01)
         if MODE=='FedADMM':
             self.roh=0.2
             self.yk=self.build_model().weights
     def build_model(self):
         model = Sequential()
-        model.add(ksl.Dense(64, activation='gelu',input_shape=self.state_size))         
+        model.add(ksl.Dense(32, activation='gelu',input_shape=self.state_size))         
         # model.add(ksl.Dropout(0.2))
         model.add(ksl.Dense(32, activation='gelu'))
         model.add(ksl.Dense(self.action_size, activation='linear'))
@@ -68,15 +72,14 @@ class agent:
         prob=tf.nn.softmax(prob).numpy()
         prob=prob/sum(list(prob))
         return np.random.choice(np.arange(self.action_size),p=prob)
-    def policy_gradient_method(self,noise=False):
+    def policy_gradient_method(self):
         Return=0
         state,_=self.env.reset()
         self.buffer=[]
         for i in range(self.num_of_timesteps):
             self.total_updates+=1
             prob=self.main_network.predict(state[None,:],verbose=0)[0]
-            if noise:
-                # action=np.random.choice(np.arange(self.action_size))
+            if self.is_attacker and ATTACK=='label_flipping':
                 action=0
             else:
                 action=self.sellect_action_dist(prob)
@@ -87,11 +90,38 @@ class agent:
                                is_done=done)
             state=n_state
             Return+=reward
-            if done or Return==2000:
+            if done or Return==500:
                 break
         self.discount_rewards()
         self.train_policy_gradient()
         return Return
+    def model_targeted_loss(self,states,action,reward):
+        # loss=10
+        while True:
+            states=tf.cast(states,tf.float32)
+            action=tf.cast(action,tf.float32)
+            reward=tf.cast(reward,tf.float32)
+            with tf.GradientTape() as tape:
+                tape.watch([states,action,reward])
+                pred_target=self.main_network(states)
+                attacker_prediction=self.attacker_target(states)
+                main_loss=self.policy_loss(policy=pred_target,
+                                           actions=action,
+                                           reward=reward)
+                attacker_loss=self.policy_loss(policy=attacker_prediction,
+                                           actions=action,
+                                           reward=reward)
+                loss=tf.math.square(main_loss-attacker_loss)
+            grad=tape.gradient(loss,[states,action,reward])
+            # for i in range(len(training_variables)):
+            states+=1*grad[0]
+            action+=1*grad[1]
+            reward+=1*grad[2]
+            print(loss)
+            # self.attacker_optimizer.apply_gradients(zip(grad,training_variables))
+            if loss>10:
+                break
+        return list(states),list(action),list(reward)
     def train_policy_gradient(self):
         rewards=[]
         actions=[]
@@ -102,9 +132,16 @@ class agent:
             actions.append(act)
             rewards.append(reward)
             states.append(state)
+        if self.is_attacker:
+            attacked_states,attacked_action,attacked_reward=self.model_targeted_loss(states,actions,rewards)
+            actions = attacked_action
+            rewards = attacked_reward
+            states=attacked_states
+        
         actions=np.array(actions)
-        reward=np.array(reward)
+        rewards=np.array(rewards)
         state=np.array(states)
+        
         with tf.GradientTape() as tape:
             tape.watch(self.main_network.trainable_variables)
             policy = self.main_network(state, training=True)
@@ -115,10 +152,8 @@ class agent:
         print(loss)
         grads = tape.gradient(loss, self.main_network.trainable_variables)
         self.optim.apply_gradients(zip(grads, self.main_network.trainable_variables))
+        
     def policy_loss(self,policy,actions,reward):
-        # losses=self.centropy(policy,actions)*reward 
-        # losses=tf.math.log(losses)
-        # loss=tf.math.reduce_mean(losses)
         loss=tf.compat.v1.nn.softmax_cross_entropy_with_logits_v2(logits = policy, labels = actions)
         loss=tf.math.reduce_mean(loss*reward)
         return loss               
@@ -275,7 +310,7 @@ class agent1(agent):
     def train_local_models(self):
         for _ in range(NUM_OF_EPISODES):
             # self.total_rewards=self.start_episode()
-            self.total_rewards=self.policy_gradient_method(noise=True)
+            self.total_rewards=self.policy_gradient_method()
             self.main_network.save('../model/model1.h5')
             self.rewards.append(self.total_rewards)
             if self.total_rewards>= max(self.rewards):
