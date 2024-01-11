@@ -6,7 +6,7 @@ if ROBUST_METHODE=='AE':
     from Autoencoder import AutoEncoder
     aemodel=AutoEncoder()    
 co=cooprator()
-agents={'agent1':agent1(is_attacker=True),
+agents={'agent1':agent1(is_attacker=False),
         'agent2':agent2(),
         'agent3':agent3(),
         'agent4':agent4(),
@@ -24,15 +24,20 @@ for i in range(500):
             else:
                 solved_counter=0
             if solved_counter==4:
+                agents[key].rewards=agents[key].rewards+[500]*(50-i)
                 tmp_st[0]+=500*(50-i)
                 break
             tmp_st[0]+=st[0]
         states.update({key:tmp_st})
     weights=[agents[ag].main_network.weights for ag in agents.keys()]
     if AGREEGATION=='weightedAveraging':
-        aggregation=co.weightedAveraging(weights,states=states)
-        for i,ag in enumerate(agents.keys()):
-            agents[ag].main_network.set_weights(aggregation[i])
+        if not MODE=='FedADMM':
+            aggregation=co.weightedAveraging(weights,states=states)
+            for i,ag in enumerate(agents.keys()):
+                agents[ag].last_aggregation_weights=aggregation[i]
+                agents[ag].main_network.set_weights(aggregation[i])
+        else:
+            pass
     else:
         if not MODE=='FedADMM':
             if i ==0:

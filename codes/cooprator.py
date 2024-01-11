@@ -12,9 +12,9 @@ class cooprator:
             self.reset_experience()
             self.graph={'agent1':['agent1','agent2','agent3','agent4','agent5'],
                         'agent2':['agent1','agent2','agent3','agent4','agent5'],
-                        'agent3':['agent2','agent3','agent4','agent5'],
-                        'agent4':['agent2','agent3','agent4','agent5'],
-                        'agent5':['agent2','agent3','agent4','agent5']}
+                        'agent3':['agent1','agent2','agent3','agent4','agent5'],
+                        'agent4':['agent1','agent2','agent3','agent4','agent5'],
+                        'agent5':['agent1','agent2','agent3','agent4','agent5']}
             self.agents_policy=[policygradient(numberOfAgents=len(self.graph[key])) for key in self.graph.keys()]
             self.clients={'agent1':pd.DataFrame(columns=['iteration','Agent1','Agent2','Agent3','Agent4','Agent5']),
                         'agent2':pd.DataFrame(columns=['iteration','Agent1','Agent2','Agent3','Agent4','Agent5']),
@@ -104,6 +104,7 @@ class cooprator:
             weights.append(model_weights)
         if self.update_counter%1==0 and self.update_counter>1:
             for i,agent in enumerate(self.graph.keys()):
+                print(f'Updating selection: Agent{i}')
                 self.agents_policy[i].train_model(actions=self.actions[agent][-17:-1],
                                                       states=self.states[agent][-17:-1],
                                                       rewards=self.rewards[agent][-16:],
@@ -123,9 +124,9 @@ class cooprator:
                 a=int(self.graph[graph_nodes[i]][act][-1])-1
                 selected_prob[a]+=dist[j][act]
             selected_prob/=selected_prob.sum()
-            if i==0:
-                selected_prob=np.zeros(self.number_of_agents)
-                selected_prob[i]=1
+            # if i==0:
+            #     selected_prob=np.zeros(self.number_of_agents)
+            #     selected_prob[i]=1
             self.A.append(selected_prob)
         for i,agent in enumerate(self.graph.keys()):
             self.clients[agent].loc[len(self.clients[agent])]=[self.iteration]+list(self.A[i])

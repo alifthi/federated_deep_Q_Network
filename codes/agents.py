@@ -31,7 +31,7 @@ class agent:
         self.main_network=self.build_model()
         self.target_network=self.build_model()
         self.prox_factor=0.05
-        self.last_aggregation_weights=None
+        self.last_aggregation_weights=self.main_network.weights
         self.optim=Adam(0.01)
         self.centropy=CategoricalCrossentropy()
         self.losses=[]
@@ -96,7 +96,6 @@ class agent:
         self.train_policy_gradient()
         return Return
     def model_targeted_loss(self,states,action,reward):
-        # loss=10
         while True:
             states=tf.cast(states,tf.float32)
             action=tf.cast(action,tf.float32)
@@ -113,13 +112,11 @@ class agent:
                                            reward=reward)
                 loss=tf.math.square(main_loss-attacker_loss)
             grad=tape.gradient(loss,[states,action,reward])
-            # for i in range(len(training_variables)):
             states+=1*grad[0]
             action+=1*grad[1]
             reward+=1*grad[2]
             print(loss)
-            # self.attacker_optimizer.apply_gradients(zip(grad,training_variables))
-            if loss>10:
+            if loss>1:
                 break
         return list(states),list(action),list(reward)
     def train_policy_gradient(self):
@@ -146,6 +143,10 @@ class agent:
             tape.watch(self.main_network.trainable_variables)
             policy = self.main_network(state, training=True)
             loss=self.policy_loss(policy,actions,rewards)
+            if MODE=='FedProx':
+                loss+=self.FedProx_loss(losses=loss)
+            elif MODE=='FedADMM':
+                loss+=self.ADMM_loss(losses=loss)
             
         self.losses.append(loss)
 
@@ -227,15 +228,16 @@ class agent:
             print(f'Epsilon: {self.eps}')
         self.target_network.set_weights(self.main_network.weights)  
         print('updating Target Network...')
-    def FedProx_loss(self,yTrue,yPred):
+    def FedProx_loss(self,yTrue=None,yPred=None,losses=None):
         model_difference = tf.nest.map_structure(lambda a, b: a - b,
                                         self.main_network.weights,
                                         self.last_aggregation_weights)
         model_difference=tf.linalg.global_norm(model_difference)**2
-        losses=tf.math.reduce_mean(tf.keras.losses.MSE(yTrue,yPred))
+        if isinstance(losses,type(None)):
+            losses=tf.math.reduce_mean(tf.keras.losses.MSE(yTrue,yPred))
         losses=+0.001*model_difference
         return losses
-    def ADMM_loss(self,yTrue,yPred):
+    def ADMM_loss(self,yTrue=None,yPred=None,losses=None):
         model_difference = tf.nest.map_structure(lambda a, b: a - b,
                                         self.main_network.weights,
                                         self.last_aggregation_weights)
@@ -245,9 +247,10 @@ class agent:
                                   tf.transpose(tf.reshape(model_difference[i],[1,-1])),1))
         residual=sum(l)
         model_difference=tf.linalg.global_norm(model_difference)**2
-        mse=tf.keras.losses.MSE(yTrue,yPred)
-        mse=tf.math.reduce_mean(mse)
-        losses=mse+self.roh*model_difference/2+residual
+        if isinstance(losses,type(None)):
+            losses=tf.keras.losses.MSE(yTrue,yPred)
+            losses=tf.math.reduce_mean(losses)
+        losses=losses+self.roh*model_difference/2+residual
         return losses[0][0]    
     def train(self,states,values,batch_size,epochs):
         sgd=SGD(0.001)
@@ -318,7 +321,6 @@ class agent1(agent):
             self.plot('1')
             print(f'[INFO] 1.{_}th round ended, Total return {self.total_rewards}!')
         return[self.total_rewards]
-        return[self.total_rewards,sum(self.losses)/len(self.losses)]
 class agent2(agent):
     def train_local_models(self):
         for _ in range(NUM_OF_EPISODES):
@@ -344,7 +346,6 @@ class agent3(agent):
             self.plot('3')
             print(f'[INFO] 3.{_}th round ended, Total return {self.total_rewards}!')
         return[self.total_rewards]
-        return[self.total_rewards,sum(self.losses)/len(self.losses)]
 
 class agent4(agent):
     def train_local_models(self):
@@ -358,7 +359,6 @@ class agent4(agent):
             self.plot('4')
         print(f'[INFO] 4.{_}th round ended, Total return {self.total_rewards}!')
         return[self.total_rewards]
-        return[self.total_rewards,sum(self.losses)/len(self.losses)]
 
 class agent5(agent):
     def train_local_models(self):
@@ -372,4 +372,3 @@ class agent5(agent):
             self.plot('5')
             print(f'[INFO] 5.{_}th round ended, Total return {self.total_rewards}!')
         return[self.total_rewards]
-        return[self.total_rewards,sum(self.losses)/len(self.losses)]
