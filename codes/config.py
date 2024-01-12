@@ -1,6 +1,6 @@
 ENV='CartPole-v1'
 MODEL_SELECTION='policy_gradient_method'
-MODE='FedProx' # FedProx FedADMM FedAvg
+MODE='FedADMM' # FedProx FedADMM FedAvg
 ROBUST_METHODE= '_' # SAM priorized DDQN
 AGREEGATION= 'weightedAveraging'# 'weightedAveraging'
 ATTACK='model_targeted_poisoning' # 'label_flipping','model_targeted_poisoning'

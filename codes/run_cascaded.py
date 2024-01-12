@@ -15,7 +15,7 @@ for i in range(500):
     print('Iteration....',i)
     states={}
     for key in agents.keys():
-        tmp_st=[0,0]
+        tmp_st=[0]
         solved_counter=0
         for i in range(50):
             st=agents[key].train_local_models()
@@ -25,6 +25,7 @@ for i in range(500):
                 solved_counter=0
             if solved_counter==4:
                 agents[key].rewards=agents[key].rewards+[500]*(50-i)
+                agent[key].plot(key[-1])
                 tmp_st[0]+=500*(50-i)
                 break
             tmp_st[0]+=st[0]
@@ -37,7 +38,12 @@ for i in range(500):
                 agents[ag].last_aggregation_weights=aggregation[i]
                 agents[ag].main_network.set_weights(aggregation[i])
         else:
-            pass
+            y_k=[]
+            for agent in agents.values():
+                y_k.append(agent.yk)
+            co.fedADMM_aggregate(weights,y_k,states=states)
+            for name,agent in agents.items():
+                agent.yk=co.yk[int(name[-1])-1]
     else:
         if not MODE=='FedADMM':
             if i ==0:

@@ -8,7 +8,7 @@ from keras.losses import CategoricalCrossentropy
 class policygradient:
     def __init__(self,numberOfAgents=3) -> None:
         self.num_of_connection=numberOfAgents
-        self.state_size=[numberOfAgents*2]
+        self.state_size=[numberOfAgents*1]
         self.discount_factor=0.9
         self.action_size=numberOfAgents
         self.total_updates=1
@@ -34,7 +34,6 @@ class policygradient:
         dist=tf.nn.softmax(polisy/30).numpy()
         dist=dist.reshape([-1])
         dist=dist/dist.sum()
-        print(dist)
         return [np.random.choice(np.arange(self.action_size),p=dist,replace=False),dist]
     def sellect_action(self,states):
         selected_actions=[]

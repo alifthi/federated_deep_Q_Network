@@ -1,4 +1,6 @@
-from config import NUMBER_OF_AGENTS, MODEL_PATH, AGREEGATION, MODEL_SELECTION,POLICY_UPDATE_RATE
+from config import NUMBER_OF_AGENTS, MODEL_PATH,\
+                    AGREEGATION, MODEL_SELECTION,\
+                    POLICY_UPDATE_RATE,MODE
 from clientselection import policygradient 
 import numpy as np
 import pandas as pd
@@ -52,27 +54,31 @@ class cooprator:
                 layer_weights.append(agents_weights[ag][i]*total_rewards[ag])
             model_weights.append(sum(layer_weights)/sum(total_rewards))
         self.last_weights=model_weights
-    def fedADMM_aggregate(self,agents_weights,y_k):
-        model_weights=[]
-        for i in range(len(agents_weights[0])):
-            layer_weights=[]
+    def fedADMM_aggregate(self,agents_weights,y_k,states=None):
+        if not AGREEGATION=='weightedAveraging':
+            model_weights=[]
+            for i in range(len(agents_weights[0])):
+                layer_weights=[]
+                for ag in range(self.number_of_agents):
+                    layer_weights.append(agents_weights[ag][i])
+                    layer_weights.append(y_k[ag][i]/self.roh)
+                model_weights.append(sum(layer_weights)/self.number_of_agents)
+        else:
+            model_weights=[]
             for ag in range(self.number_of_agents):
-                layer_weights.append(agents_weights[ag][i])
-                layer_weights.append(y_k[ag][i]/self.roh)
-            model_weights.append(sum(layer_weights)/self.number_of_agents)
+                layers=[]
+                for i in range(len(agents_weights[0])):
+                    layers.append(agents_weights[ag][i]+y_k[ag][i]/self.roh)
+                model_weights.append(layers)
+            model_weights=self.weightedAveraging(model_weights,states=states)
         self.last_weights=model_weights
-        model1_weights=[]
-        model2_weights=[]
+        self.yk=[]
+
         for ag in range(self.number_of_agents):
             layer_weights=[]
             for i in range(len(agents_weights[0])):
-                layer_weights=y_k[ag][i]+self.roh*(agents_weights[ag][i]-self.last_weights[i])
-                if ag==0:
-                    model1_weights.append(layer_weights/self.number_of_agents)
-                elif ag==1:
-                    model2_weights.append(layer_weights/self.number_of_agents)
-        self.yk_1=model1_weights
-        self.yk_2=model2_weights
+                layer_weights.append(y_k[ag][i]+self.roh*(agents_weights[ag][i]-self.last_weights[ag][i]))
+            self.yk.append(layer_weights)
     def weightedAveraging(self,agents_weights,states=None):
         if MODEL_SELECTION=='policy_gradient_method':
             if self.update_counter > -1:
@@ -90,7 +96,7 @@ class cooprator:
                     self.states[key].append(s)
                     if self.update_counter>=1:
                         self.n_states[key].append(s)
-                        reward=agent_reward  # +0.8*(agent_reward - np.mean(other_rewards))
+                        reward=agent_reward 
                         self.rewards[key].append(reward)
                 self.agent_selection(state)
             else:
