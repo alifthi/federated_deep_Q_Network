@@ -9,6 +9,7 @@ from utils import utils
 import gym 
 import random
 from matplotlib import pyplot as plt
+from tensorflow.keras.utils import plot_model
 from keras.losses import CategoricalCrossentropy
 from config import ENV, STATE_SIZE, BATCH_SIZE,\
                     TARGET_NETWORK_UPDATE_RATE,\
@@ -45,10 +46,12 @@ class agent:
             self.yk=self.build_model().weights
     def build_model(self):
         model = Sequential()
-        model.add(ksl.Dense(32, activation='gelu',input_shape=self.state_size))         
+        model.add(ksl.Dense(32, activation='gelu',input_shape=self.state_size,name='fc1'))
         # model.add(ksl.Dropout(0.2))
-        model.add(ksl.Dense(32, activation='gelu'))
-        model.add(ksl.Dense(self.action_size, activation='linear'))
+        model.add(ksl.Dense(32, activation='gelu',name='fc2'))
+        # model.add(ksl.Dropout(0.2))
+        model.add(ksl.Dense(32, activation='gelu',name='fc3'))
+        model.add(ksl.Dense(self.action_size, activation='linear',name='Output'))
         model.summary()
         if MODE=='FedAvg':
             model.compile(loss='mae',optimizer=SGD(0.01),metrics=['mae','mse'])
@@ -56,6 +59,7 @@ class agent:
             model.compile(loss=self.FedProx_loss,optimizer=SGD(0.01),metrics=['mae','mse'])
         else:
             model.compile(loss=self.FedProx_loss,optimizer=SGD(0.01),metrics=['mae','mse'])
+        plot_model(model,to_file=FIGURE_PATH+'/model.png',show_shapes=True)
         return model
     def update_buffer(self, state, action, reward, n_state, is_done,TD=None):
         if not isinstance(type(TD),type(None)):
@@ -129,7 +133,7 @@ class agent:
             actions.append(act)
             rewards.append(reward)
             states.append(state)
-        if self.is_attacker:
+        if self.is_attacker and ATTACK=='model_targeted_poisoning':
             attacked_states,attacked_action,attacked_reward=self.model_targeted_loss(states,actions,rewards)
             actions = attacked_action
             rewards = attacked_reward

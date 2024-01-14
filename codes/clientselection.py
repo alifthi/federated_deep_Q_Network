@@ -5,6 +5,7 @@ from keras.optimizers import SGD,Adam
 import tensorflow as tf
 from tensorflow.keras import layers as ksl 
 from keras.losses import CategoricalCrossentropy
+from tensorflow.keras.utils import plot_model
 class policygradient:
     def __init__(self,numberOfAgents=3) -> None:
         self.num_of_connection=numberOfAgents
@@ -13,21 +14,22 @@ class policygradient:
         self.action_size=numberOfAgents
         self.total_updates=1
         self.model=self.build_model()
+        plot_model(self.model,'model.png')
         self.Q_network=self.build_model(Q_network=True)
         self.optim=Adam(0.01)
         self.optim_phi=Adam(0.01)
         self.centropy=CategoricalCrossentropy()
     def build_model(self,Q_network=False):
-        inp = ksl.Input(self.state_size)
-        x=ksl.Dense(32, activation='relu')(inp)     
+        inp = ksl.Input(self.state_size,name='Input')
+        x=ksl.Dense(32, activation='relu',name='FC1')(inp)     
         # x = ksl.Dropout(0.5)(x)    
-        x=ksl.Dense(16, activation='relu')(x)
+        x=ksl.Dense(16, activation='relu',name='FC2')(x)
         outs=[]
         for _ in range(int(self.num_of_connection/2)+1):
             if Q_network:
                 outs.append(ksl.Dense(self.action_size, activation='linear')(x))
             else:
-                outs.append(ksl.Dense(self.action_size, activation='relu')(x))
+                outs.append(ksl.Dense(self.action_size, activation='relu',name='Output'+str(_))(x))
         model=tf.keras.Model(inp,outputs=outs)
         return model
     def sellect_action_by_distribution(self,polisy):

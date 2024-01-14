@@ -6,7 +6,7 @@ if ROBUST_METHODE=='AE':
     from Autoencoder import AutoEncoder
     aemodel=AutoEncoder()    
 co=cooprator()
-agents={'agent1':agent1(is_attacker=False),
+agents={'agent1':agent1(is_attacker=True),
         'agent2':agent2(),
         'agent3':agent3(),
         'agent4':agent4(),
@@ -25,7 +25,6 @@ for i in range(500):
                 solved_counter=0
             if solved_counter==4:
                 agents[key].rewards=agents[key].rewards+[500]*(50-i)
-                agent[key].plot(key[-1])
                 tmp_st[0]+=500*(50-i)
                 break
             tmp_st[0]+=st[0]

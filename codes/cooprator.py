@@ -1,6 +1,5 @@
 from config import NUMBER_OF_AGENTS, MODEL_PATH,\
-                    AGREEGATION, MODEL_SELECTION,\
-                    POLICY_UPDATE_RATE,MODE
+                    AGREEGATION, MODEL_SELECTION
 from clientselection import policygradient 
 import numpy as np
 import pandas as pd
