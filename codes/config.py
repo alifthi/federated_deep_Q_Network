@@ -1,4 +1,4 @@
-ENV='CartPole-v1'
+ENV='VPP' # 'CartPole-v1'
 MODEL_SELECTION='policy_gradient_method'
 MODE='FedADMM' # FedProx FedADMM FedAvg
 ROBUST_METHODE= '_' # SAM priorized DDQN

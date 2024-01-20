@@ -1,6 +1,7 @@
 import os
 os.environ["TF_CPP_MIN_LOG_LEVEL"]='3'
 import numpy as np
+import pandas as pd
 from keras.optimizers import SGD,Adam
 import tensorflow as tf
 from tensorflow.keras.models import Sequential
@@ -23,7 +24,10 @@ class agent:
         self.discount_factor=DISCOUNT_FACTOR
         self.num_of_timesteps=NUM_OF_TIMESTEPS
         self.buffer=[]
-        self.env=gym.make(ENV,render_mode='rgb_array')
+        if not ENV=='VPP':
+            self.env=gym.make(ENV,render_mode='rgb_array')
+        else:
+            self.env=self.vpp_env()
         self.action_size=self.env.action_space.n
         self.eps=0.6
         self.utils=utils()
@@ -197,7 +201,8 @@ class agent:
         tmp /= np.std(tmp)
         for i,r in enumerate(tmp):
             self.buffer[i][2]=r
-
+    def vpp_env(self):
+        pass
 
     def train_main_models(self):
         if not ROBUST_METHODE=='priorized':
@@ -313,6 +318,34 @@ class agent:
         plt.xlabel('Episode')
         plt.ylabel('Rewards')
         plt.savefig(f'{FIGURE_PATH}/Rewards_{MODE}_{ROBUST_METHODE}_{agent}.png')
+class env_vpp:
+    def __init__(self) -> None:
+        self.load_datasets('../Dataset/scenario_datasets/')
+    def load_datasets(self,path):
+        self.sp_data=pd.read_csv(path+'PV_load_2020_profile.csv')
+        self.wt_data=pd.read_csv(path+'WT_load_2020_profile.csv')
+        self.price=pd.read_csv(path+'market_prices_2020_profile.csv')
+        self.houseload_data=pd.read_csv(path+'households_load_profile.csv')
+        self.t=0 # second
+        self.time_delay=15 # second
+    def step_reward_function(self,total_load,soc,state_in_table):
+        load_value=self.price.iloc[state_in_table,1]*total_load
+        if load_value<-1:
+            load_reward=load_value+1
+        elif load_value>=-1 and load_value<0:
+            load_reward=15*load_value+15
+        elif load_value>=0 and load_value<1:
+            load_reward=-15*load_value+15
+        else:
+            load_reward=-load_value+1
+        
+        if soc<90:
+            soc_reward=5*soc-300
+        else:
+            soc_reward=-10*soc+1050
+        return load_reward,soc_reward
+    def step(self,action):
+        pass
 class agent1(agent):
     def train_local_models(self):
         for _ in range(NUM_OF_EPISODES):
