@@ -1,7 +1,7 @@
 import os
 os.environ["TF_CPP_MIN_LOG_LEVEL"]='3'
 import numpy as np
-from vpp_env import env_vpp
+from vpp_env import vpp_env
 from keras.optimizers import SGD,Adam
 import tensorflow as tf
 from tensorflow.keras.models import Sequential
@@ -26,9 +26,12 @@ class agent:
         self.buffer=[]
         if not ENV=='VPP':
             self.env=gym.make(ENV,render_mode='rgb_array')
+            self.action_size=self.env.action_space.n
         else:
-            self.env=self.vpp_env()
-        self.action_size=self.env.action_space.n
+            self.env=vpp_env()
+            self.action_size=self.env.action_space
+            self.num_EV=self.env.num_EV_charger
+            self.state_size=[2+self.num_EV]
         self.eps=0.6
         self.utils=utils()
         self.target_network_update_rate=TARGET_NETWORK_UPDATE_RATE
@@ -49,13 +52,17 @@ class agent:
             self.roh=0.2
             self.yk=self.build_model().weights
     def build_model(self):
-        model = Sequential()
-        model.add(ksl.Dense(32, activation='gelu',input_shape=self.state_size,name='fc1'))
-        # model.add(ksl.Dropout(0.2))
-        model.add(ksl.Dense(32, activation='gelu',name='fc2'))
-        # model.add(ksl.Dropout(0.2))
-        model.add(ksl.Dense(32, activation='gelu',name='fc3'))
-        model.add(ksl.Dense(self.action_size, activation='linear',name='Output'))
+        inp=ksl.Input(self.state_size)
+        x=ksl.Dense(32, activation='gelu',name='fc1')(inp)
+        x=ksl.Dense(32, activation='gelu',name='fc2')(x)
+        x=ksl.Dense(32, activation='gelu',name='fc3')(x)
+        if not ENV=='VPP':
+            outs=ksl.Dense(self.action_size, activation='linear',name='Output')(x)
+        else:
+            outs=[]
+            for i in range(self.num_EV):
+                outs.append(ksl.Dense(self.action_size, activation='linear',name='Output'+str(i))(x))
+        model=tf.keras.Model(inp,outs)
         model.summary()
         if MODE=='FedAvg':
             model.compile(loss='mae',optimizer=SGD(0.01),metrics=['mae','mse'])
