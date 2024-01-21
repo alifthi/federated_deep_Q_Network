@@ -6,7 +6,7 @@ if ROBUST_METHODE=='AE':
     from Autoencoder import AutoEncoder
     aemodel=AutoEncoder()    
 co=cooprator()
-agents={'agent1':agent1(is_attacker=True),
+agents={'agent1':agent1(is_attacker=False),
         'agent2':agent2(),
         'agent3':agent3(),
         'agent4':agent4(),
@@ -17,7 +17,7 @@ for i in range(500):
     for key in agents.keys():
         tmp_st=[0]
         solved_counter=0
-        for i in range(50):
+        for i in range(50000):
             st=agents[key].train_local_models()
             if st[0]==500:
                 solved_counter+=1

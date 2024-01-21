@@ -6,6 +6,7 @@ class vpp_env:
         self.num_EV_charger=4
         self.action_space=3
         self.time_delay=15 # second
+        self.state_in_table=0
         self.naminal_power=3.7
         self.EV_cap=100
         self.time_to_fullcharge=self.EV_cap/self.naminal_power #hours
@@ -15,6 +16,7 @@ class vpp_env:
         self.time_to_park=np.random.normal(24,1,size=self.num_EV)
         self.parked_time=np.zeros_like(self.soc)
         self.charging_EVs=np.random.choice(range(self.num_EV),self.num_EV_charger)
+        self.states=None
     def load_datasets(self,path):
         self.sp_data=pd.read_csv(path+'PV_load_2020_profile.csv')
         self.wt_data=pd.read_csv(path+'WT_load_2020_profile.csv')
@@ -26,8 +28,8 @@ class vpp_env:
         for i in range(self.num_EV):
             if self.parked_time[i]>self.time_to_park[i] or self.soc[i]==1:
                 self.soc_of_departed_EVs.append(self.soc[i])
-                rewards[1]+=self.reward_for_soc(self.soc[i])
-                self.charging_EVs[self.charging_EVs==i]=np.random.sample(range(self.num_EV))
+                rewards[1]+=self.reward_for_soc(self.soc[i]*100)
+                self.charging_EVs[self.charging_EVs==i]=np.random.choice(range(self.num_EV),1)
                 self.parked_time[i]=0
                 
         self.t+=self.time_delay
@@ -39,26 +41,29 @@ class vpp_env:
         
         self.soc[self.charging_EVs]=self.soc[self.charging_EVs]\
             +(action.T*self.time_delay/(self.time_to_fullcharge*60*60))
-        power=exist_energy+states[0]
-        states=[]
-        states.append(action.T@(np.ones_like(action)*self.naminal_power))
-        states.append(power)
-        states.append(self.soc*self.EV_cap)
-        rewards[1]=power
+        self.states=np.zeros(3)
+        self.states[0]=action.T@(np.ones_like(action)*self.naminal_power)
+        power=exist_energy+self.states[0]
+        self.states[1]=power
+        self.states[2]=self.soc[self.charging_EVs].T@np.ones_like(self.charging_EVs)*self.EV_cap
+        rewards[1]=self.reward_for_load_value(power)
         self.total_power+=power
         if power<0:
             self.purchased_energy+=power
         else:
             self.excess_energy+=power
         if not self.t==0 and self.t%900==0:
-            rewards[2]=self.trajectory_ending_reward(
-                sum(self.soc_of_departed_EVs)/len(self.soc_of_departed_EVs),
-                                                     self.purchased_energy,
+            try:
+                soc=sum(self.soc_of_departed_EVs)/len(self.soc_of_departed_EVs)
+            except:
+                soc=0
+            rewards[2]=self.trajectory_ending_reward(soc*100,
+                                                     abs(self.purchased_energy),
                                                      self.excess_energy,
-                                                     self.total_power*0.25)
+                                                     abs(self.total_power))
 
             episode_done=True
-        return states,sum(rewards),episode_done    
+        return self.states,sum(rewards),episode_done    
     def reset(self):
         self.t=0
         self.state_in_table+=1
@@ -66,6 +71,10 @@ class vpp_env:
         self.excess_energy=0
         self.total_power=0
         self.soc_of_departed_EVs=[]
+        if isinstance(self.states,type(None)):
+            return np.zeros(3)
+        else:
+            return self.states
     def reward_for_load_value(self,total_load):
         load_value=self.price.iloc[self.state_in_table,1]*total_load
         if load_value<-1:
@@ -99,7 +108,7 @@ class vpp_env:
             rewards[2]=-5*renewable_energy/3+5000
         else:
             rewards[2]=-3*renewable_energy/2+4500
-            
+        print('Exceed power ',renewable_energy,'purched power ',greed_energy,'Cost ',cost)
         if cost<450:
             rewards[3]=-40*cost+18000
         else:

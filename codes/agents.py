@@ -4,7 +4,6 @@ import numpy as np
 from vpp_env import vpp_env
 from keras.optimizers import SGD,Adam
 import tensorflow as tf
-from tensorflow.keras.models import Sequential
 from tensorflow.keras import layers as ksl 
 from utils import utils
 import gym 
@@ -31,7 +30,7 @@ class agent:
             self.env=vpp_env()
             self.action_size=self.env.action_space
             self.num_EV=self.env.num_EV_charger
-            self.state_size=[2+self.num_EV]
+            self.state_size=[3]
         self.eps=0.6
         self.utils=utils()
         self.target_network_update_rate=TARGET_NETWORK_UPDATE_RATE
@@ -83,23 +82,25 @@ class agent:
             return np.random.randint(self.action_size)
         return np.argmax(Q_value[0])
     def sellect_action_dist(self,prob):
-
-        prob=tf.nn.softmax(prob).numpy()
+        prob=tf.nn.softmax(prob).numpy()[0]
         prob=prob/sum(list(prob))
         return np.random.choice(np.arange(self.action_size),p=prob)
     def policy_gradient_method(self):
         Return=0
-        state,_=self.env.reset()
+        state=self.env.reset()
         self.buffer=[]
         for i in range(self.num_of_timesteps):
             self.total_updates+=1
-            prob=self.main_network.predict(state[None,:],verbose=0)[0]
+            prob=self.main_network.predict(state[None,:],verbose=0)
             if self.is_attacker and ATTACK=='label_flipping':
                 action=0
             else:
-                action=self.sellect_action_dist(prob)
-                
-            n_state, reward, done,_,_=self.env.step(action)
+                if not ENV=='VPP':
+                    action=self.sellect_action_dist(prob)
+                else:
+                    action=[self.sellect_action_dist(p)-1 for p in prob]
+                    action=np.array(action)
+            n_state, reward, done=self.env.step(action)
             self.update_buffer(action=action, reward=reward,
                                n_state=n_state, state=state,
                                is_done=done)
@@ -136,24 +137,28 @@ class agent:
         return list(states),list(action),list(reward)
     def train_policy_gradient(self):
         rewards=[]
-        actions=[]
         states=[]
-        for state, action, reward, _, _ in self.buffer:
-            act=np.zeros(self.action_size)
-            act[action]=1
-            actions.append(act)
-            rewards.append(reward)
-            states.append(state)
+        actionss=[]
+        for i in range(4):
+            actions=[]
+            for state, action, reward, _, _ in self.buffer:
+                act=np.zeros(self.action_size)
+                act[action[i]]=1
+                # act=tf.keras.utils.to_categorical(action+1,num_classes=3)
+                actions.append(act)
+                if i ==0:
+                    rewards.append(reward)
+                    states.append(state)
+            actionss.append(actions)
         if self.is_attacker and ATTACK=='model_targeted_poisoning':
             attacked_states,attacked_action,attacked_reward=self.model_targeted_loss(states,actions,rewards)
             actions = attacked_action
             rewards = attacked_reward
             states=attacked_states
         
-        actions=np.array(actions)
+        actions=np.array(actionss)
         rewards=np.array(rewards)
         state=np.array(states)
-        
         with tf.GradientTape() as tape:
             tape.watch(self.main_network.trainable_variables)
             policy = self.main_network(state, training=True)
