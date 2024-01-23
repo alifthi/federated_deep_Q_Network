@@ -30,7 +30,7 @@ class agent:
             self.env=vpp_env()
             self.action_size=self.env.action_space
             self.num_EV=self.env.num_EV_charger
-            self.state_size=[3]
+            self.state_size=[2+self.num_EV]
         self.eps=0.6
         self.utils=utils()
         self.target_network_update_rate=TARGET_NETWORK_UPDATE_RATE
@@ -52,8 +52,8 @@ class agent:
             self.yk=self.build_model().weights
     def build_model(self):
         inp=ksl.Input(self.state_size)
-        x=ksl.Dense(32, activation='gelu',name='fc1')(inp)
-        x=ksl.Dense(32, activation='gelu',name='fc2')(x)
+        x=ksl.Dense(128, activation='gelu',name='fc1')(inp)
+        x=ksl.Dense(64, activation='gelu',name='fc2')(x)
         x=ksl.Dense(32, activation='gelu',name='fc3')(x)
         if not ENV=='VPP':
             outs=ksl.Dense(self.action_size, activation='linear',name='Output')(x)
@@ -92,15 +92,22 @@ class agent:
         for i in range(self.num_of_timesteps):
             self.total_updates+=1
             prob=self.main_network.predict(state[None,:],verbose=0)
-            if self.is_attacker and ATTACK=='label_flipping':
-                action=0
-            else:
-                if not ENV=='VPP':
-                    action=self.sellect_action_dist(prob)
+            n_state=None
+            counter=0
+            while isinstance(n_state,type(None)):
+                if self.is_attacker and ATTACK=='label_flipping':
+                    action=0
                 else:
-                    action=[self.sellect_action_dist(p)-1 for p in prob]
-                    action=np.array(action)
-            n_state, reward, done=self.env.step(action)
+                    if not ENV=='VPP':
+                        action=self.sellect_action_dist(prob)
+                    else:
+                        action=[self.sellect_action_dist(p)-1 for p in prob]
+                        action=np.array(action)
+                counter+=1
+                if counter>20:
+                    prob=np.ones_like(prob)
+                    prob=prob/prob.sum()
+                n_state, reward, done=self.env.step(action)
             self.update_buffer(action=action, reward=reward,
                                n_state=n_state, state=state,
                                is_done=done)
