@@ -15,13 +15,14 @@ from config import ENV, STATE_SIZE, BATCH_SIZE,\
                     TARGET_NETWORK_UPDATE_RATE,\
                     DISCOUNT_FACTOR, NUM_OF_EPISODES,\
                      NUM_OF_TIMESTEPS,MODE,ROBUST_METHODE,\
-                     FIGURE_PATH,MODEL_PATH, ATTACK
+                     FIGURE_PATH,MODEL_PATH, ATTACK, IS_CONTINOUS
 class agent:
     def __init__(self,is_attacker=False) -> None:
         self.state_size=STATE_SIZE
         self.batch_size=BATCH_SIZE
         self.discount_factor=DISCOUNT_FACTOR
         self.num_of_timesteps=NUM_OF_TIMESTEPS
+        self.is_continous=IS_CONTINOUS
         self.buffer=[]
         if not ENV=='VPP':
             self.env=gym.make(ENV,render_mode='rgb_array')
@@ -39,7 +40,7 @@ class agent:
         self.target_network=self.build_model()
         self.prox_factor=0.05
         self.last_aggregation_weights=self.main_network.weights
-        self.optim=Adam(0.01)
+        self.optim=Adam(0.001)
         self.centropy=CategoricalCrossentropy()
         self.losses=[]
         self.rewards=[]
@@ -53,14 +54,19 @@ class agent:
     def build_model(self):
         inp=ksl.Input(self.state_size)
         x=ksl.Dense(128, activation='gelu',name='fc1')(inp)
+        x=ksl.Dropout(0.5)(x)
         x=ksl.Dense(64, activation='gelu',name='fc2')(x)
+        x=ksl.Dropout(0.5)(x)
         x=ksl.Dense(32, activation='gelu',name='fc3')(x)
         if not ENV=='VPP':
             outs=ksl.Dense(self.action_size, activation='linear',name='Output')(x)
         else:
-            outs=[]
-            for i in range(self.num_EV):
-                outs.append(ksl.Dense(self.action_size, activation='linear',name='Output'+str(i))(x))
+            if not self.is_continous:
+                outs=[]
+                for i in range(self.num_EV):
+                    outs.append(ksl.Dense(self.action_size, activation='relu',name='Output'+str(i))(x))
+            else:
+                outs=[ksl.Dense(4,activation='sigmoid',name='Output')(x)]
         model=tf.keras.Model(inp,outs)
         model.summary()
         if MODE=='FedAvg':
@@ -82,7 +88,7 @@ class agent:
             return np.random.randint(self.action_size)
         return np.argmax(Q_value[0])
     def sellect_action_dist(self,prob):
-        prob=tf.nn.softmax(prob).numpy()[0]
+        prob=tf.nn.softmax(prob/1).numpy()[0]
         prob=prob/sum(list(prob))
         return np.random.choice(np.arange(self.action_size),p=prob)
     def policy_gradient_method(self):
@@ -101,12 +107,15 @@ class agent:
                     if not ENV=='VPP':
                         action=self.sellect_action_dist(prob)
                     else:
-                        action=[self.sellect_action_dist(p)-1 for p in prob]
+                        if not self.is_continous:
+                            action=[self.sellect_action_dist(p)-1 for p in prob]
+                        else:
+                            action=prob[0]
                         action=np.array(action)
                 counter+=1
                 if counter>20:
                     prob=np.ones_like(prob)
-                    prob=prob/prob.sum()
+                    # prob=prob/prob.sum()
                 n_state, reward, done=self.env.step(action)
             self.update_buffer(action=action, reward=reward,
                                n_state=n_state, state=state,
@@ -145,12 +154,16 @@ class agent:
     def train_policy_gradient(self):
         rewards=[]
         states=[]
+
         actionss=[]
         for i in range(4):
             actions=[]
             for state, action, reward, _, _ in self.buffer:
-                act=np.zeros(self.action_size)
-                act[action[i]]=1
+                if not self.is_continous:
+                    act=np.zeros(self.action_size)
+                    act[action[i]]=1
+                else:
+                    act=action
                 # act=tf.keras.utils.to_categorical(action+1,num_classes=3)
                 actions.append(act)
                 if i ==0:
@@ -182,8 +195,16 @@ class agent:
         self.optim.apply_gradients(zip(grads, self.main_network.trainable_variables))
         
     def policy_loss(self,policy,actions,reward):
-        loss=tf.compat.v1.nn.softmax_cross_entropy_with_logits_v2(logits = policy, labels = actions)
-        loss=tf.math.reduce_mean(loss*reward)
+        if self.is_continous:
+            loss=-tf.math.log(policy)
+            loss=-policy
+            loss=tf.math.reduce_mean(reward.reshape([1,-1])@loss)
+   
+        else:
+            loss=tf.compat.v1.nn.softmax_cross_entropy_with_logits_v2(logits = policy, labels = actions)
+            loss=tf.math.reduce_mean(reward*loss)
+        # print(reward.reshape([1,-1]),loss.shape)
+        print('>>>>>>>>>>')
         return loss               
     def start_episode(self):
         return_=0

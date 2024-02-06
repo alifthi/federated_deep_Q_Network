@@ -17,7 +17,7 @@ for i in range(500):
     for key in agents.keys():
         tmp_st=[0]
         solved_counter=0
-        for i in range(100):
+        for i in range(50):
             st=agents[key].train_local_models()
             if st[0]==500:
                 solved_counter+=1
