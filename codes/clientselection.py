@@ -14,7 +14,7 @@ class policygradient:
         self.action_size=numberOfAgents
         self.total_updates=1
         self.model=self.build_model()
-        plot_model(self.model,'model.png')
+        plot_model(self.model,'model_client_selection.png')
         self.Q_network=self.build_model(Q_network=True)
         self.optim=Adam(0.01)
         self.optim_phi=Adam(0.01)

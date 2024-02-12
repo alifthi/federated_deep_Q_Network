@@ -17,7 +17,7 @@ from config import ENV, STATE_SIZE, BATCH_SIZE,\
                      NUM_OF_TIMESTEPS,MODE,ROBUST_METHODE,\
                      FIGURE_PATH,MODEL_PATH, ATTACK, IS_CONTINOUS
 class agent:
-    def __init__(self,is_attacker=False) -> None:
+    def __init__(self,name,is_attacker=False) -> None:
         self.state_size=STATE_SIZE
         self.batch_size=BATCH_SIZE
         self.discount_factor=DISCOUNT_FACTOR
@@ -28,20 +28,22 @@ class agent:
             self.env=gym.make(ENV,render_mode='rgb_array')
             self.action_size=self.env.action_space.n
         else:
-            self.env=vpp_env()
+            self.env=vpp_env(name=name)
             self.action_size=self.env.action_space
             self.num_EV=self.env.num_EV_charger
             self.state_size=[2+self.num_EV]
         self.eps=0.6
-        self.utils=utils()
         self.target_network_update_rate=TARGET_NETWORK_UPDATE_RATE
         self.total_updates=1
         self.main_network=self.build_model()
-        self.target_network=self.build_model()
+        # self.utils=utils()
+        #self.target_network=self.build_model()
         self.prox_factor=0.05
-        self.last_aggregation_weights=self.main_network.weights
+        if not MODE=='FedAvg':
+            self.last_aggregation_weights=self.main_network.weights
         self.optim=Adam(0.001)
-        self.centropy=CategoricalCrossentropy()
+        if self.is_continous==False:
+            self.centropy=CategoricalCrossentropy()
         self.losses=[]
         self.rewards=[]
         self.is_attacker=is_attacker
@@ -95,14 +97,14 @@ class agent:
         Return=0
         state=self.env.reset()
         self.buffer=[]
-        for i in range(self.num_of_timesteps):
+        for _ in range(self.num_of_timesteps):
             self.total_updates+=1
             prob=self.main_network.predict(state[None,:],verbose=0)
             n_state=None
             counter=0
             while isinstance(n_state,type(None)):
                 if self.is_attacker and ATTACK=='label_flipping':
-                    action=0
+                    action=np.ones(4).astype(int)
                 else:
                     if not ENV=='VPP':
                         action=self.sellect_action_dist(prob)
@@ -154,7 +156,6 @@ class agent:
     def train_policy_gradient(self):
         rewards=[]
         states=[]
-
         actionss=[]
         for i in range(4):
             actions=[]
@@ -175,10 +176,10 @@ class agent:
             actions = attacked_action
             rewards = attacked_reward
             states=attacked_states
-        
         actions=np.array(actionss)
         rewards=np.array(rewards)
         state=np.array(states)
+        del(actionss,self.buffer)
         with tf.GradientTape() as tape:
             tape.watch(self.main_network.trainable_variables)
             policy = self.main_network(state, training=True)
@@ -189,23 +190,29 @@ class agent:
                 loss+=self.ADMM_loss(losses=loss)
             
         self.losses.append(loss)
-
-        print(loss)
         grads = tape.gradient(loss, self.main_network.trainable_variables)
         self.optim.apply_gradients(zip(grads, self.main_network.trainable_variables))
-        
     def policy_loss(self,policy,actions,reward):
         if self.is_continous:
-            loss=-tf.math.log(policy)
-            loss=-policy
-            loss=tf.math.reduce_mean(reward.reshape([1,-1])@loss)
-   
+            # loss=tf.math.log(policy)
+            loss=policy
+            loss=-tf.math.reduce_mean(reward.reshape([1,-1])@loss)
         else:
             loss=tf.compat.v1.nn.softmax_cross_entropy_with_logits_v2(logits = policy, labels = actions)
             loss=tf.math.reduce_mean(reward*loss)
-        # print(reward.reshape([1,-1]),loss.shape)
-        print('>>>>>>>>>>')
-        return loss               
+        # loss=tf.math.reduce_mean(reward*loss)
+        return loss  
+    def discount_rewards(self):
+            reward_to_go = 0.0
+            for i in reversed(range(len(self.buffer))):
+                reward_to_go = reward_to_go * self.discount_factor + self.buffer[i][2]
+                self.buffer[i][2] = reward_to_go
+            tmp=np.array(self.buffer)
+            tmp=tmp[:,2]
+            tmp -= np.mean(tmp)
+            tmp /= np.std(tmp)
+            for i,r in enumerate(tmp):
+                self.buffer[i][2]=r
     def start_episode(self):
         return_=0
         state,_=self.env.reset()
@@ -230,20 +237,6 @@ class agent:
             if done:
                 break
         return return_
-    def discount_rewards(self):
-        reward_to_go = 0.0
-        for i in reversed(range(len(self.buffer))):
-            reward_to_go = reward_to_go * self.discount_factor + self.buffer[i][2]
-            self.buffer[i][2] = reward_to_go
-        tmp=np.array(self.buffer)
-        tmp=tmp[:,2]
-        tmp -= np.mean(tmp)
-        tmp /= np.std(tmp)
-        for i,r in enumerate(tmp):
-            self.buffer[i][2]=r
-    def vpp_env(self):
-        pass
-
     def train_main_models(self):
         if not ROBUST_METHODE=='priorized':
             batch=random.sample(self.buffer,self.batch_size)
